@@ -1,0 +1,10 @@
+{
+	"name": "geneticd",
+	"description": "A genetic algorithm for D",
+	"copyright": "Copyright © 2013, tomas",
+	"authors": ["Tomáš Chaloupka"],
+	"targetType": "executable",
+	"mainSourceFile": "source/geneticd/app.d",
+	"dependencies": {
+	}
+}
