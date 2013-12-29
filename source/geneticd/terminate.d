@@ -22,7 +22,7 @@ interface ITerminateFunction
 /**
  * Simple terminate function which just calls the provided delegate function
  */
-class DelegateTerminateFunction(termFun...) : ITerminateFunction 
+private class DelegateTerminateFunction(termFun...) : ITerminateFunction 
     if(termFun.length)
 {
     bool opCall(in StatusInfo status) nothrow
@@ -89,6 +89,32 @@ private class NoImprovementTerminateFunction(uint maxGenerations) : ITerminateFu
 }
 
 /**
+ * Composite terminate function which consists of more ITerminateFunctions.
+ * Functions are evaluated in the same order as created.
+ * 
+ * Note:
+ * First function with positive result breaks evaluation so not all terminate functions are guaranteed to be called at GA termination
+ */
+private class CompositeTerminateFunction : ITerminateFunction
+{
+    ITerminateFunction[] _funcList;
+
+    this(ITerminateFunction[] funcList...)
+    {
+        this._funcList = funcList;
+    }
+
+    bool opCall(in StatusInfo status)
+    {
+        foreach(f; _funcList)
+        {
+            if(f(status)) return true;
+        }
+        return false;
+    }
+}
+
+/**
  * Helper function to create terminate function which calls provided delegates or functions
  * 
  * Can be used to create composite terminate function which consists of more than one terminate function
@@ -134,6 +160,14 @@ auto noImprovementTerminate(uint maxGenerations)()
     return new NoImprovementTerminateFunction!(maxGenerations)();
 }
 
+/**
+ * Create composite terminate function
+ */
+auto compositeTerminate(ITerminateFunction[] functionList...)
+{
+    return new CompositeTerminateFunction(functionList);
+}
+
 /// delegateTerminate tests
 unittest
 {
@@ -152,14 +186,14 @@ unittest
     assert(func(status) == false);
 }
 
-//composite test
+//composite delegate test
 unittest
 {
     StatusInfo status = StatusInfo(1, 0, 0);
     ITerminateFunction func = delegateTerminate!(
         s => s.generations >= 10,
         s => s.evaluations >= 50,);
-        //fitnessTerminate!(100)); //TODO: make this possible
+        //fitnessTerminate!(100)); //TODO: is this possible?
 
     assert(func(status) == false);
     status.generations = 10;
@@ -210,4 +244,21 @@ unittest
     while(!func(status)) status.generations++;
     
     assert(status.generations == 11); //first gen is ok, then +10
+}
+
+//composite test
+unittest
+{
+    StatusInfo status = StatusInfo(1, 0, 0);
+    ITerminateFunction func = compositeTerminate(
+        maxGenerationsTerminate!10,
+        maxEvaluationsTerminate!50,
+        fitnessTerminate!100);
+    
+    assert(func(status) == false);
+    status.generations = 10;
+    assert(func(status) == true);
+    status.generations = 1;
+    status.evaluations = 50;
+    assert(func(status) == true);
 }
