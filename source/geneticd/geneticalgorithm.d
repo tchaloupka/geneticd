@@ -5,6 +5,7 @@ import geneticd.chromosome;
 import geneticd.gene;
 import geneticd.population;
 import geneticd.fitness;
+import geneticd.terminate;
 
 /**
  * Driving class for genetic algorithm evaluation
@@ -15,12 +16,28 @@ class GA(T:IChromosome)
     private Population!T _population;
     private size_t _generations;
     private size_t _evaluations;
+    private StatusInfo _status;
 
     /// Constructor
     this(Configuration!T configuration)
     {
         this._configuration = configuration;
     }
+}
+
+/**
+ * GA status information holder to describe current status of running algorithm
+ */
+struct StatusInfo
+{
+    /// Total number of evolved generations (1 means the first generation);
+    size_t generations;
+
+    /// Total number of evaluations (chromosome.evaluate calls)
+    size_t evaluations;
+
+    /// Fitness of the best solution found
+    double bestFitness;
 }
 
 /// Simple guessing of bool array content
@@ -62,7 +79,7 @@ unittest
     });
 
     //set terminate function
-    //TODO
+    conf.terminateFunction = fitnessTerminate!(size); //size of the input is also maximum fitness (all bool values are equal)
 
     //add GA operations
     //TODO

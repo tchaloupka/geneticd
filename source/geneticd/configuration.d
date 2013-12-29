@@ -2,6 +2,7 @@ module geneticd.configuration;
 
 import geneticd.chromosome;
 import geneticd.fitness;
+import geneticd.terminate;
 
 /**
  * Configuration parameters for GA evaluation
@@ -11,6 +12,7 @@ class Configuration(T:IChromosome)
     private uint _populationSize = 100;
     private T _sampleChromosome;
     private IFitnessFunction!T _fitnessFunc;
+    private ITerminateFunction _terminateFunc;
 
     /// Default constructor
     this()
@@ -29,6 +31,7 @@ class Configuration(T:IChromosome)
     {
         this._sampleChromosome = sampleChromosome;
         this._populationSize = populationSize;
+        this._terminateFunc = maxGenerationsTerminate!100;
     }
 
     /**
@@ -44,6 +47,23 @@ class Configuration(T:IChromosome)
         this._sampleChromosome = sampleChromosome;
         this._fitnessFunc = fitnessFunc;
         this._populationSize = populationSize;
+        this._terminateFunc = maxGenerationsTerminate!100;
+    }
+
+    /**
+     * Constructor
+     * 
+     * Params:
+     *      sampleChromosome = chromosome which is used to specify how each chromosome of the population should look alike, its used for population generation
+     *      fitnessFunc = function used to evaluate fitness of each chromosome of the population before each evolution
+     *      populationSize = defines the population size
+     */
+    this(T sampleChromosome, IFitnessFunction!T fitnessFunc, ITerminateFunction terminateFunc, uint populationSize = 100)
+    {
+        this._sampleChromosome = sampleChromosome;
+        this._fitnessFunc = fitnessFunc;
+        this._populationSize = populationSize;
+        this._terminateFunc = terminateFunc;
     }
 
     /**
@@ -92,6 +112,22 @@ class Configuration(T:IChromosome)
     @property pure nothrow void fitnessFunction(IFitnessFunction!T func)
     {
         _fitnessFunc = func;
+    }
+
+    /**
+     * Terminate function is used to determine if GA should continue with next generation or not
+     */
+    @property pure nothrow ITerminateFunction terminateFunction()
+    {
+        return _terminateFunc;
+    }
+    
+    /**
+     * Terminate function is used to determine if GA should continue with next generation or not
+     */
+    @property pure nothrow void terminateFunction(ITerminateFunction func)
+    {
+        _terminateFunc = func;
     }
 }
 

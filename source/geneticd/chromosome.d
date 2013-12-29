@@ -41,6 +41,11 @@ interface IChromosome
     @property pure nothrow void survive(bool survive);
 
     /**
+     * Has chromosome already been evaluated?
+     */
+    @property pure nothrow bool isEvaluated() const;
+
+    /**
      * Used by GA engine to clean up any resources
      */
     pure nothrow void clean();
@@ -212,6 +217,14 @@ class Chromosome(T:IGene!G, G) : IChromosome
         assert(!isSample);
 
         this._survive = survive;
+    }
+
+    /**
+     * Has chromosome already been evaluated?
+     */
+    @property pure nothrow bool isEvaluated() const
+    {
+        return _fitness != double.nan;
     }
     
     /**

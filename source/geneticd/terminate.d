@@ -1,75 +1,213 @@
 module geneticd.terminate;
 
-import geneticd.chromosome;
-import geneticd.population;
+import std.exception : enforce;
+import std.math : isNaN;
+import std.typetuple;
+import std.traits;
+import geneticd.geneticalgorithm;
 
-//TODO: Define simple non generic Population interface tu use with these functions or define for example GAStatusInfo that store used parameters
+//alias bool function(StatusInfo) termFuncDelegate;
 
 /**
  * Interface for a GA terminate conditions
  */
-interface ITerminateFunction(T:IChromosome)
+interface ITerminateFunction
 {
     /**
      * Determines if further evaluations should be terminated
      */
-    bool terminate(Population!T population, size_t generations, size_t evaluations);
+    bool opCall(in StatusInfo status) nothrow;
 }
 
 /**
  * Simple terminate function which just calls the provided delegate function
  */
-class SimpleTerminateFunction(T) : ITerminateFunction!T
+class DelegateTerminateFunction(termFun...) : ITerminateFunction 
+    if(termFun.length)
 {
-    bool delegate(Population!T population, size_t generations, size_t evaluations) _termFunc;
-    
-    this(bool delegate(Population!T population, size_t generations, size_t evaluations) func)
+    bool opCall(in StatusInfo status) nothrow
     {
-        assert(func !is null);
-        this._termFunc = func;
-    }
-    
-    bool terminate(Population!T population, size_t generations, size_t evaluations)
-    {
-        return _termFunc(population, generations, evaluations);
+        assert(!isNaN(status.bestFitness));
+        assert(status.generations > 0);
+
+        try
+        {
+            static if(termFun.length == 1)
+            {
+                return termFun[0](status);
+            }
+            else
+            {
+                foreach(fun; termFun)
+                {
+                    if(fun(status)) return true;
+                }
+
+                return false;
+            }
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
 
 /**
- * Helper function to create simple terminate function
+ * Terminate function which terminates GA evaluation when better fitness is not achieved within specified number of generations.
+ * 
+ * Params:
+ *      maxGenerations = maximum number of generations we wait for better fitness before GA is terminated
  */
-SimpleTerminate!T simpleTerminate(T:IChromosome)(double delegate(Population!T population, size_t generations, size_t evaluations) terminator)
+private class NoImprovementTerminateFunction(uint maxGenerations) : ITerminateFunction
+    if(maxGenerations > 0)
 {
-    return new SimpleTerminateFunction!T(terminator);
+    private double _bestFitness;
+    private uint _noImpGenerations;
+    private size_t _lastGen;
+
+    /**
+     * Determines if further evaluations should be terminated
+     */
+    bool opCall(in StatusInfo status) nothrow
+    {
+        assert(!isNaN(status.bestFitness));
+        assert(status.generations > 0);
+        assert(_lastGen != status.generations);
+
+        _lastGen = status.generations;
+
+        if(isNaN(_bestFitness) || _bestFitness < status.bestFitness)
+        {
+            _bestFitness = status.bestFitness;
+            _noImpGenerations = 0;
+            return false;
+        }
+
+        return (++_noImpGenerations >= maxGenerations);
+    }
+}
+
+/**
+ * Helper function to create terminate function which calls provided delegates or functions
+ * 
+ * Can be used to create composite terminate function which consists of more than one terminate function
+ */
+auto delegateTerminate(T...)()
+{
+    return new DelegateTerminateFunction!T();
 }
 
 /**
  * Helper function to create simple terminate function which terminates evaluation after specified number of generations
  */
-SimpleTerminate!T maxGenerationsTerminate(T:IChromosome)(size_t maxGenerations)
+auto maxGenerationsTerminate(size_t maxGenerations)()
 {
-    return new SimpleTerminateFunction!T((population, generations, evaluations) => generations >= maxGenerations);
+    return new DelegateTerminateFunction!((status) => status.generations >= maxGenerations);
 }
 
 /**
  * Helper function to create simple terminate function which terminates evaluation after specified number of generations
  */
-SimpleTerminate!T maxEvaluationsTerminate(T:IChromosome)(size_t maxEvaluations)
+auto maxEvaluationsTerminate(size_t maxEvaluations)()
 {
-    return new SimpleTerminateFunction!T((population, generations, evaluations) => evaluations >= maxEvaluations);
+    return new DelegateTerminateFunction!((status) => status.evaluations >= maxEvaluations)();
 }
 
 /**
  * Helper function to create simple terminate function which terminates evaluation after required fitness is achieved
  */
-SimpleTerminate!T targetFitnessTerminate(T:IChromosome)(double targetFitness)
+auto fitnessTerminate(double targetFitness)()
 {
-    return new SimpleTerminateFunction!T((population, generations, evaluations) => population.best.fitness >= targetFitness);
+    assert(!isNaN(targetFitness));
+    return new DelegateTerminateFunction!((status) => status.bestFitness >= targetFitness)();
 }
 
-//TODO: Terminate when defined count of generations does not achieve further improvement
+/**
+ * Terminate function which terminates GA evaluation when better fitness is not achieved within specified number of generations.
+ * 
+ * Params:
+ *      maxGenerations = maximum number of generations we wait for better fitness before GA is terminated
+ */
+auto noImprovementTerminate(uint maxGenerations)()
+{
+    return new NoImprovementTerminateFunction!(maxGenerations)();
+}
 
+/// delegateTerminate tests
 unittest
 {
-    //TODO: add some unittests for terminate functions
+    import std.exception;
+
+    StatusInfo status = StatusInfo(1, 0, 0);
+
+    ITerminateFunction func = delegateTerminate!(s => s.generations == 10);
+    assert(func(status) == false);
+
+    status.generations = 10;
+    assert(func(status) == true);
+
+    //throwing delegate test
+    func = delegateTerminate!((s){ if(s.generations >=0) throw new Exception(""); return true;});
+    assert(func(status) == false);
+}
+
+//composite test
+unittest
+{
+    StatusInfo status = StatusInfo(1, 0, 0);
+    ITerminateFunction func = delegateTerminate!(
+        s => s.generations >= 10,
+        s => s.evaluations >= 50,);
+        //fitnessTerminate!(100)); //TODO: make this possible
+
+    assert(func(status) == false);
+    status.generations = 10;
+    assert(func(status) == true);
+    status.generations = 1;
+    status.evaluations = 50;
+    assert(func(status) == true);
+}
+
+//maxGenerationsTerminate test
+unittest
+{
+    StatusInfo status = StatusInfo(1, 0, 0);
+    ITerminateFunction func = maxGenerationsTerminate!(10);
+    while(!func(status)) status.generations++;
+
+    assert(status.generations == 10);
+}
+
+/// maxEvaluationsTerminate test
+unittest
+{
+    StatusInfo status = StatusInfo(1, 0, 0);
+    ITerminateFunction func = maxEvaluationsTerminate!(10);
+    while(!func(status)) status.evaluations++;
+    
+    assert(status.evaluations == 10);
+}
+
+/// fitnessTerminate test
+unittest
+{
+    StatusInfo status = StatusInfo(1, 0, 0);
+    ITerminateFunction func = fitnessTerminate!(100.0);
+    while(!func(status)) status.bestFitness += 10;
+    
+    assert(status.bestFitness == 100.0);
+}
+
+/// noImprovementTerminate test
+unittest
+{
+    StatusInfo status = StatusInfo(1, 0, 50.0);
+    ITerminateFunction func = noImprovementTerminate!(10);
+
+    import std.stdio;
+
+    while(!func(status)) status.generations++;
+    
+    assert(status.generations == 11); //first gen is ok, then +10
 }
