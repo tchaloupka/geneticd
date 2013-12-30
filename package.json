@@ -3,7 +3,7 @@
 	"description": "A genetic algorithm for D",
 	"copyright": "Copyright © 2013, tomas",
 	"authors": ["Tomáš Chaloupka"],
-	"targetType": "executable",
+	"targetType": "library",
 	"mainSourceFile": "source/geneticd/app.d",
 	"dependencies": {
 	}
