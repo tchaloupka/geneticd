@@ -18,6 +18,7 @@ class Population(T:IChromosome)
         assert(configuration !is null);
 
         this._configuration = configuration;
+        initRandom();
     }
     
     /// The best genome of the population
@@ -32,5 +33,63 @@ class Population(T:IChromosome)
     @property pure nothrow bool changed() const
     {
         return this._changed;
+    }
+
+    private void initRandom()
+    {
+        assert(_configuration.sampleChromosome !is null);
+
+        _chromosomes.length = _configuration.populationSize;
+        foreach(i; 0.._configuration.populationSize)
+        {
+            _chromosomes[i] = new T(_configuration);
+        }
+    }
+
+    /// evaluate fitness of all not evaluated chromosomes in population
+    /// 
+    /// Returns:
+    ///     number of evaluated chromosomes
+    size_t fitness()
+    {
+        scope(exit)
+        {
+            assert(this._best !is null);
+        }
+
+        size_t evaluated;
+        foreach(ch; _chromosomes.filter!(a=>!a.isEvaluated))
+        {
+            ch.fitness = _configuration.fitnessFunction.evaluate(ch);
+            if((this._best is null) || this._best.fitness < ch.fitness) this._best = ch;
+            evaluated++;
+        }
+
+        return evaluated;
+    }
+
+    /// List of chromosomes
+    /// 
+    /// Returns:
+    ///     list of chromosomes
+    @property T[] chromosomes()
+    {
+        return _chromosomes;
+    }
+
+    override string toString() const
+    {
+        import std.conv : to;
+
+        string tmp = "Population(\n";
+
+        foreach(ch; _chromosomes)
+        {
+            tmp ~= to!string(ch) ~ "\n";
+        }
+
+        tmp ~= ")";
+
+        return tmp;
     }
 }

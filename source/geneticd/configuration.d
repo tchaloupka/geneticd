@@ -3,16 +3,34 @@ module geneticd.configuration;
 import geneticd.chromosome;
 import geneticd.fitness;
 import geneticd.terminate;
+import geneticd.geneticalgorithm;
 
 /**
  * Configuration parameters for GA evaluation
  */
 class Configuration(T:IChromosome)
 {
+    struct CallBacks
+    {
+        import std.traits : isDelegate;
+        import std.string : format;
+
+        /// Called when fitness is determined for all chromosomes in current population
+        void delegate(StatusInfo) onFitness;
+
+        void invoke(alias CallBack,U...)(U params)
+        {
+            mixin(format("if(%s !is null) try{ %s(params);} catch{}", CallBack, CallBack));
+        }
+    }
+
     private uint _populationSize = 100;
     private T _sampleChromosome;
     private IFitnessFunction!T _fitnessFunc;
     private ITerminateFunction _terminateFunc;
+
+    /// Simple struct to hold callback delegates
+    CallBacks callBacks;
 
     /// Default constructor
     this()

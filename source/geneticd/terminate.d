@@ -16,7 +16,7 @@ interface ITerminateFunction
     /**
      * Determines if further evaluations should be terminated
      */
-    bool opCall(in StatusInfo status) nothrow;
+    bool terminate(in StatusInfo status) nothrow;
 }
 
 /**
@@ -25,7 +25,7 @@ interface ITerminateFunction
 private class DelegateTerminateFunction(termFun...) : ITerminateFunction 
     if(termFun.length)
 {
-    bool opCall(in StatusInfo status) nothrow
+    bool terminate(in StatusInfo status) nothrow
     {
         assert(!isNaN(status.bestFitness));
         assert(status.generations > 0);
@@ -69,7 +69,7 @@ private class NoImprovementTerminateFunction(uint maxGenerations) : ITerminateFu
     /**
      * Determines if further evaluations should be terminated
      */
-    bool opCall(in StatusInfo status) nothrow
+    bool terminate(in StatusInfo status) nothrow
     {
         assert(!isNaN(status.bestFitness));
         assert(status.generations > 0);
@@ -104,11 +104,11 @@ private class CompositeTerminateFunction : ITerminateFunction
         this._funcList = funcList;
     }
 
-    bool opCall(in StatusInfo status)
+    bool terminate(in StatusInfo status)
     {
         foreach(f; _funcList)
         {
-            if(f(status)) return true;
+            if(f.terminate(status)) return true;
         }
         return false;
     }
@@ -176,14 +176,14 @@ unittest
     StatusInfo status = StatusInfo(1, 0, 0);
 
     ITerminateFunction func = delegateTerminate!(s => s.generations == 10);
-    assert(func(status) == false);
+    assert(func.terminate(status) == false);
 
     status.generations = 10;
-    assert(func(status) == true);
+    assert(func.terminate(status) == true);
 
     //throwing delegate test
     func = delegateTerminate!((s){ if(s.generations >=0) throw new Exception(""); return true;});
-    assert(func(status) == false);
+    assert(func.terminate(status) == false);
 }
 
 //composite delegate test
@@ -193,14 +193,14 @@ unittest
     ITerminateFunction func = delegateTerminate!(
         s => s.generations >= 10,
         s => s.evaluations >= 50,);
-        //fitnessTerminate!(100)); //TODO: is this possible?
+        //fitnessTerminate!(100)); //this is not possible as class instances are not the valid template arguments
 
-    assert(func(status) == false);
+    assert(func.terminate(status) == false);
     status.generations = 10;
-    assert(func(status) == true);
+    assert(func.terminate(status) == true);
     status.generations = 1;
     status.evaluations = 50;
-    assert(func(status) == true);
+    assert(func.terminate(status) == true);
 }
 
 //maxGenerationsTerminate test
@@ -208,7 +208,7 @@ unittest
 {
     StatusInfo status = StatusInfo(1, 0, 0);
     ITerminateFunction func = maxGenerationsTerminate!(10);
-    while(!func(status)) status.generations++;
+    while(!func.terminate(status)) status.generations++;
 
     assert(status.generations == 10);
 }
@@ -218,7 +218,7 @@ unittest
 {
     StatusInfo status = StatusInfo(1, 0, 0);
     ITerminateFunction func = maxEvaluationsTerminate!(10);
-    while(!func(status)) status.evaluations++;
+    while(!func.terminate(status)) status.evaluations++;
     
     assert(status.evaluations == 10);
 }
@@ -228,7 +228,7 @@ unittest
 {
     StatusInfo status = StatusInfo(1, 0, 0);
     ITerminateFunction func = fitnessTerminate!(100.0);
-    while(!func(status)) status.bestFitness += 10;
+    while(!func.terminate(status)) status.bestFitness += 10;
     
     assert(status.bestFitness == 100.0);
 }
@@ -241,7 +241,7 @@ unittest
 
     import std.stdio;
 
-    while(!func(status)) status.generations++;
+    while(!func.terminate(status)) status.generations++;
     
     assert(status.generations == 11); //first gen is ok, then +10
 }
@@ -255,10 +255,10 @@ unittest
         maxEvaluationsTerminate!50,
         fitnessTerminate!100);
     
-    assert(func(status) == false);
+    assert(func.terminate(status) == false);
     status.generations = 10;
-    assert(func(status) == true);
+    assert(func.terminate(status) == true);
     status.generations = 1;
     status.evaluations = 50;
-    assert(func(status) == true);
+    assert(func.terminate(status) == true);
 }

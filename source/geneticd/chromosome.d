@@ -2,6 +2,7 @@ module geneticd.chromosome;
 
 import std.conv;
 import std.string;
+import std.math : isNaN;
 
 import geneticd.gene;
 import geneticd.configuration;
@@ -75,7 +76,8 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
-     * Chromosome constructor which uses a configuration sampleChromosome to initialization
+     * Chromosome constructor which uses a configuration sampleChromosome to initialization.
+     * Random chromosome is initialized.
      * 
      * Params:
      *      configuration = GA configuration
@@ -104,7 +106,8 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
-     * Chromosome constructor
+     * Chromosome constructor.
+     * Random chromosome is initialized.
      * 
      * Params:
      *      configuration = GA configuration
@@ -178,7 +181,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
-     * Age of the chromosome - number of generation since chromosome was born
+     * Age of the chromosome - number of generation since chromosome was born (0 means the chromosome was born in current generation)
      * Can be used for altering chromosome fitness by age (to prefer new ones over the old ones)
      */
     @property pure nothrow uint age() const
@@ -224,7 +227,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
      */
     @property pure nothrow bool isEvaluated() const
     {
-        return _fitness != double.nan;
+        return !isNaN(_fitness);
     }
     
     /**
@@ -264,12 +267,17 @@ class Chromosome(T:IGene!G, G) : IChromosome
      */
     pure nothrow T opIndex(size_t i)
     {
+        assert(i<this._genes.length);
+
         return this._genes[i];
     }
 
-    override string toString()
+    override string toString() const
     {
+        import std.string : lastIndexOf;
+
         string tmp = to!string(typeid(this));
+        tmp = tmp[(tmp.lastIndexOf('.')+1)..$];
         tmp ~= "(";
         if(isSample) tmp ~= "SAMPLE, ";
         tmp ~= format("age: %s, ", _age);

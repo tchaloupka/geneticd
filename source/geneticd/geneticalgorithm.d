@@ -21,7 +21,58 @@ class GA(T:IChromosome)
     /// Constructor
     this(Configuration!T configuration)
     {
+        assert(configuration !is null, "Configuration not set");
+        assert(configuration.terminateFunction !is null, "Terminate function not set");
+
         this._configuration = configuration;
+    }
+
+    /// Executes the GA algorithm
+    void run()
+    {
+        do
+        {
+            evolvePopulation(); //create next gen
+            _status.evaluations += _population.fitness(); //determine fitness of chromosomes
+            _status.bestFitness = _population.best.fitness;
+            _configuration.callBacks.invoke!"onFitness"(_status);
+        }
+        while(!_configuration.terminateFunction.terminate(_status));
+    }
+
+    /// prepare next generation
+    private void evolvePopulation()
+    {
+        if(_population is null) //first
+        {
+            initRandomPopulation();
+            assert(_population !is null);
+            _status.generations = 1;
+        }
+        else
+        {
+            //TODO: select, mutate, cross, ...
+            _status.generations++;
+        }
+    }
+
+    /**
+     * Initializes random population.
+     * Can be overriden so it can be used to customize population generation
+     */
+    protected void initRandomPopulation()
+    {
+        _population = new Population!T(_configuration);
+    }
+
+    /**
+     * Current population of GA
+     */
+    @property nothrow const(Population!T) population() const
+    {
+        assert(_population !is null);
+
+        return cast(const(Population!T))(_population);
     }
 }
 
@@ -63,7 +114,8 @@ unittest
     writefln("Input: [%s]", target.map!(to!string).joiner(", "));
 
     //create GA configuration
-    auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), 10));
+    auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), size));
+    conf.populationSize = 10;
 
     //set fitness function
     conf.fitnessFunction = simpleFitness!chromoType(delegate (ch)
@@ -79,16 +131,23 @@ unittest
     });
 
     //set terminate function
-    conf.terminateFunction = fitnessTerminate!(size); //size of the input is also maximum fitness (all bool values are equal)
+    //conf.terminateFunction = fitnessTerminate!(size); //size of the input is also maximum fitness (all bool values are equal)
+    conf.terminateFunction = maxGenerationsTerminate!(10);
 
     //add GA operations
     //TODO
 
     //set callback functions
-    //TODO
+    GA!chromoType ga;
+    conf.callBacks.onFitness = (s)
+    {
+        writefln("Gen %s, Eval: %s, Best: %s", s.generations, s.evaluations, s.bestFitness);
+        writeln(ga.population);
+    };
 
     //execute GA
-    //TODO
+    ga = new GA!chromoType(conf);
+    ga.run();
 
     writeln();
 }

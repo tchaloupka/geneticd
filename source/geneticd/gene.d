@@ -233,7 +233,7 @@ else
         return null;
     }
 
-    override string toString()
+    override string toString() const
     {
         return to!string(_value);
     }
