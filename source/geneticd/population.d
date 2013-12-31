@@ -10,15 +10,22 @@ class Population(T:IChromosome)
     private Configuration!T _configuration;
     private T[] _chromosomes;
     private T _best;
+    private double _totalFitness;
     private bool _changed;
     
-    /// Create a population
-    public this(Configuration!T configuration)
+    /**
+     * Create a population
+     * 
+     * Params:
+     *      configuration = configuration of GA
+     *      init = if true, the population is initialized with random chromosomes
+     */
+    public this(Configuration!T configuration, bool init = true)
     {
         assert(configuration !is null);
 
         this._configuration = configuration;
-        initRandom();
+        if(init) initRandom();
     }
     
     /// The best genome of the population
@@ -58,23 +65,37 @@ class Population(T:IChromosome)
         }
 
         size_t evaluated;
+        _totalFitness = 0;
         foreach(ch; _chromosomes.filter!(a=>!a.isEvaluated))
         {
             ch.fitness = _configuration.fitnessFunction.evaluate(ch);
+            _totalFitness += ch.fitness;
             if((this._best is null) || this._best.fitness < ch.fitness) this._best = ch;
             evaluated++;
         }
 
+        _changed = false;
+
         return evaluated;
     }
 
-    /// List of chromosomes
-    /// 
-    /// Returns:
-    ///     list of chromosomes
+    /**
+     * List of chromosomes
+     * 
+     * Returns:
+     *      list of chromosomes
+     */
     @property T[] chromosomes()
     {
         return _chromosomes;
+    }
+
+    /**
+     * Returns the summed fitness of all chromosomes
+     */
+    @property double totalFitness()
+    {
+        return _totalFitness;
     }
 
     override string toString() const
@@ -91,5 +112,15 @@ class Population(T:IChromosome)
         tmp ~= ")";
 
         return tmp;
+    }
+
+    /// Assign operator so we can manually extend chromosomes in population
+    Population!T opOpAssign(string op)(T chromosome) if(op == "~")
+    {
+        assert(chromosome !is null);
+
+        _chromosomes ~= chromosome;
+        _changed = true;
+        return this;
     }
 }

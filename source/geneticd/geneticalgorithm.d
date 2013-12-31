@@ -33,8 +33,11 @@ class GA(T:IChromosome)
         do
         {
             evolvePopulation(); //create next gen
+
             _status.evaluations += _population.fitness(); //determine fitness of chromosomes
             _status.bestFitness = _population.best.fitness;
+            _status.averageFitness = _population.totalFitness / _population.chromosomes.length;
+
             _configuration.callBacks.invoke!"onFitness"(_status);
         }
         while(!_configuration.terminateFunction.terminate(_status));
@@ -51,7 +54,12 @@ class GA(T:IChromosome)
         }
         else
         {
+            auto newPopulation = new Population!T(_configuration, false);
+            newPopulation ~= new T(_configuration);
+
             //TODO: select, mutate, cross, ...
+
+            _population = newPopulation;
             _status.generations++;
         }
     }
@@ -89,6 +97,9 @@ struct StatusInfo
 
     /// Fitness of the best solution found
     double bestFitness;
+
+    /// Average fitness of the current population
+    double averageFitness;
 }
 
 /// Simple guessing of bool array content
@@ -141,7 +152,7 @@ unittest
     GA!chromoType ga;
     conf.callBacks.onFitness = (s)
     {
-        writefln("Gen %s, Eval: %s, Best: %s", s.generations, s.evaluations, s.bestFitness);
+        writefln("Gen %s, Eval: %s, Best: %s, Avg: %s", s.generations, s.evaluations, s.bestFitness, s.averageFitness);
         writeln(ga.population);
     };
 

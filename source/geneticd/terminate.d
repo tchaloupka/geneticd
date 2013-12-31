@@ -58,9 +58,10 @@ private class DelegateTerminateFunction(termFun...) : ITerminateFunction
  * 
  * Params:
  *      maxGenerations = maximum number of generations we wait for better fitness before GA is terminated
+ *      op = with this we can select if bestFitness or averageFitness of population will be checked to grow
  */
-private class NoImprovementTerminateFunction(uint maxGenerations) : ITerminateFunction
-    if(maxGenerations > 0)
+private class NoImprovementTerminateFunction(uint maxGenerations, string op = "bestFitness") : ITerminateFunction
+    if(maxGenerations > 0 && (op == "bestFitness" || op == "averageFitness"))
 {
     private double _bestFitness;
     private uint _noImpGenerations;
@@ -71,15 +72,15 @@ private class NoImprovementTerminateFunction(uint maxGenerations) : ITerminateFu
      */
     bool terminate(in StatusInfo status) nothrow
     {
-        assert(!isNaN(status.bestFitness));
+        assert(!isNaN(mixin("status." ~ op)));
         assert(status.generations > 0);
         assert(_lastGen != status.generations);
 
         _lastGen = status.generations;
 
-        if(isNaN(_bestFitness) || _bestFitness < status.bestFitness)
+        if(isNaN(_bestFitness) || _bestFitness < mixin("status." ~ op))
         {
-            _bestFitness = status.bestFitness;
+            _bestFitness = mixin("status." ~ op);
             _noImpGenerations = 0;
             return false;
         }
@@ -155,9 +156,9 @@ auto fitnessTerminate(double targetFitness)()
  * Params:
  *      maxGenerations = maximum number of generations we wait for better fitness before GA is terminated
  */
-auto noImprovementTerminate(uint maxGenerations)()
+auto noImprovementTerminate(uint maxGenerations, string op = "bestFitness")()
 {
-    return new NoImprovementTerminateFunction!(maxGenerations)();
+    return new NoImprovementTerminateFunction!(maxGenerations, op)();
 }
 
 /**
@@ -236,13 +237,28 @@ unittest
 /// noImprovementTerminate test
 unittest
 {
-    StatusInfo status = StatusInfo(1, 0, 50.0);
+    StatusInfo status = StatusInfo(1, 0, 50.0, 0.0);
     ITerminateFunction func = noImprovementTerminate!(10);
 
     import std.stdio;
 
-    while(!func.terminate(status)) status.generations++;
+    while(!func.terminate(status))
+    {
+        status.averageFitness += 1;
+        status.generations++;
+        assert(status.generations < 20); //to stop the loop if terminate does not work
+    }
     
+    assert(status.generations == 11); //first gen is ok, then +10
+
+    status.generations = 1;
+    func = noImprovementTerminate!(10, "averageFitness");
+    while(!func.terminate(status))
+    {
+        status.bestFitness += 1;
+        status.generations++;
+        assert(status.generations < 20); //to stop the loop if terminate does not work
+    }
     assert(status.generations == 11); //first gen is ok, then +10
 }
 
