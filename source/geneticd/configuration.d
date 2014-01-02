@@ -4,6 +4,7 @@ import geneticd.chromosome;
 import geneticd.fitness;
 import geneticd.terminate;
 import geneticd.geneticalgorithm;
+import geneticd.operators;
 
 /**
  * Configuration parameters for GA evaluation
@@ -28,6 +29,10 @@ class Configuration(T:IChromosome)
     private T _sampleChromosome;
     private IFitnessFunction!T _fitnessFunc;
     private ITerminateFunction _terminateFunc;
+    private ISelectionOperator!T _eliteSelectionOperator;
+    private ISelectionOperator!T _parentSelectionOperator;
+    private double _crossoverProbability = 0.8;
+    private double _mutationProbability = 0.01;
 
     /// Simple struct to hold callback delegates
     CallBacks callBacks;
@@ -146,6 +151,96 @@ class Configuration(T:IChromosome)
     @property pure nothrow void terminateFunction(ITerminateFunction func)
     {
         _terminateFunc = func;
+    }
+
+    /**
+     * Selection operator used to select elite chromosomes from the current population which are used in the new population without any change.
+     * This allows to survive the best chromosomes found yet.
+     */
+    @property pure nothrow ISelectionOperator!T eliteSelectionOperator()
+    {
+        return _eliteSelectionOperator;
+    }
+    
+    /**
+     * Selection operator used to select elite chromosomes from the current population which are used in the new population without any change.
+     * This allows to survive the best chromosomes found yet.
+     */
+    @property pure nothrow void eliteSelectionOperator(ISelectionOperator!T eliteSel)
+    {
+        _eliteSelectionOperator = eliteSel;
+    }
+
+    /**
+     * Operator to select parent chromosomes for crossover opertor.
+     */
+    @property pure nothrow ISelectionOperator!T parentSelectionOperator()
+    {
+        return _parentSelectionOperator;
+    }
+    
+    /**
+     * Operator to select parent chromosomes for crossover opertor.
+     */
+    @property pure nothrow void parentSelectionOperator(ISelectionOperator!T eliteSel)
+    {
+        _parentSelectionOperator = eliteSel;
+    }
+
+    /**
+     * Probability of crossover operator. The higher the number is, the higher rate of crossover.
+     * Expected value range is [0..1]
+     * Note:
+     *      This should be relatively high number - about 80%
+     *      0 means no crossover will be performed so all parents will be taken as they are before mutation operator.
+     *      1 means that all parents initiate new offspring.
+     */
+    @property pure nothrow double crossoverProbability() const
+    {
+        return _crossoverProbability;
+    }
+    
+    /**
+     * Probability of crossover operator. The higher the number is, the higher rate of crossover.
+     * Expected value range is [0..1]
+     * Note:
+     *      This should be relatively high number - about 80%
+     *      0 means no crossover will be performed so all parents will be taken as they are before mutation operator.
+     *      1 means that all parents initiate new offspring.
+     */
+    @property pure nothrow void crossoverProbability(double probability)
+    {
+        assert(probability > 0.0 && probability < 1.0);
+
+        _crossoverProbability = probability;
+    }
+
+    /**
+     * Probability of mutation operator. The higher the number is, the higher rate of mutation.
+     * Expected value range is [0..1]
+     * Note:
+     *      This should be relatively low number - about 0.5% - 1%
+     *      0 means no mutation will be performed.
+     *      1 means that all genes of each chromosome will be mutated - which makes random search from GA.
+     */
+    @property pure nothrow double mutationProbability() const
+    {
+        return _crossoverProbability;
+    }
+    
+    /**
+     * Probability of mutation operator. The higher the number is, the higher rate of mutation.
+     * Expected value range is [0..1]
+     * Note:
+     *      This should be relatively low number - about 0.5% - 1%
+     *      0 means no mutation will be performed.
+     *      1 means that all genes of each chromosome will be mutated - which makes random search from GA.
+     */
+    @property pure nothrow void mutationProbability(double probability)
+    {
+        assert(probability > 0.0 && probability < 1.0);
+        
+        _crossoverProbability = probability;
     }
 }
 

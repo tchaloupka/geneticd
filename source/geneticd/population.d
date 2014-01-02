@@ -12,6 +12,8 @@ class Population(T:IChromosome)
     private T _best;
     private double _totalFitness;
     private bool _changed;
+    private bool _evaluated;
+    private bool _sorted;
     
     /**
      * Create a population
@@ -75,6 +77,7 @@ class Population(T:IChromosome)
         }
 
         _changed = false;
+        _evaluated = true;
 
         return evaluated;
     }
@@ -85,7 +88,7 @@ class Population(T:IChromosome)
      * Returns:
      *      list of chromosomes
      */
-    @property T[] chromosomes()
+    @property pure nothrow T[] chromosomes()
     {
         return _chromosomes;
     }
@@ -93,9 +96,25 @@ class Population(T:IChromosome)
     /**
      * Returns the summed fitness of all chromosomes
      */
-    @property double totalFitness()
+    @property pure nothrow double totalFitness() const
     {
         return _totalFitness;
+    }
+
+    /**
+     * Are population chromosomes evaluated?
+     */
+    @property pure nothrow bool evaluated() const
+    {
+        return _evaluated;
+    }
+
+    /**
+     * Are population chromosomes sorted?
+     */
+    @property pure nothrow bool sorted() const
+    {
+        return _sorted;
     }
 
     override string toString() const
@@ -115,12 +134,25 @@ class Population(T:IChromosome)
     }
 
     /// Assign operator so we can manually extend chromosomes in population
-    Population!T opOpAssign(string op)(T chromosome) if(op == "~")
+    Population!T opOpAssign(string op)(T[] chromosome...) if(op == "~")
     {
         assert(chromosome !is null);
 
         _chromosomes ~= chromosome;
         _changed = true;
+        _sorted = false;
+        _evaluated = false;
         return this;
+    }
+
+    void sortChromosomes()
+    {
+        assert(_evaluated);
+
+        if(!_sorted) // sort only if not sorted yet
+        {
+            sort!"a.fitness > b.fitness"(_chromosomes);
+            _sorted = true;
+        }
     }
 }

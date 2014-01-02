@@ -1,11 +1,16 @@
 module geneticd.geneticalgorithm;
 
+import std.algorithm : map;
+import std.array : array;
+import std.random : dice;
+
 import geneticd.configuration;
 import geneticd.chromosome;
 import geneticd.gene;
 import geneticd.population;
 import geneticd.fitness;
 import geneticd.terminate;
+import geneticd.operators;
 
 /**
  * Driving class for genetic algorithm evaluation
@@ -23,6 +28,7 @@ class GA(T:IChromosome)
     {
         assert(configuration !is null, "Configuration not set");
         assert(configuration.terminateFunction !is null, "Terminate function not set");
+        assert(configuration.parentSelectionOperator !is null, "Parent selection operator not set");
 
         this._configuration = configuration;
     }
@@ -43,6 +49,13 @@ class GA(T:IChromosome)
         while(!_configuration.terminateFunction.terminate(_status));
     }
 
+    private T cloneChromosome(T chromosome)
+    {
+        auto tmp = chromosome.clone();
+        tmp.age = tmp.age + 1;  // tmp.age++ not working yet -> @property is not lvalue
+        return tmp;
+    }
+
     /// prepare next generation
     private void evolvePopulation()
     {
@@ -57,7 +70,35 @@ class GA(T:IChromosome)
             auto newPopulation = new Population!T(_configuration, false);
             newPopulation ~= new T(_configuration);
 
-            //TODO: select, mutate, cross, ...
+            // handle special case of selection operator
+            if(_configuration.eliteSelectionOperator !is null)
+            {
+                //select elite chromosomes
+                newPopulation ~= _configuration.eliteSelectionOperator.select(_population).map!(a=>cloneChromosome(a)).array;
+            }
+
+            while(newPopulation.chromosomes.length < _configuration.populationSize)
+            {
+                // 1. select parent chromosomes
+                auto tmp = _configuration.parentSelectionOperator.select(_population).map!(a=>cloneChromosome(a)).array;
+
+                // 2. crossover parents
+                if(dice(_configuration.crossoverProbability, 1.0 - _configuration.crossoverProbability) == 0)
+                {
+                    //TODO: crossover
+                    newPopulation ~= tmp;
+                }
+                else
+                {
+                    //use as they are
+                    newPopulation ~= tmp;
+                }
+
+                // 3. mutate offspring
+
+                // 4. add to new population
+
+            }
 
             _population = newPopulation;
             _status.generations++;
@@ -146,6 +187,8 @@ unittest
     conf.terminateFunction = maxGenerationsTerminate!(10);
 
     //add GA operations
+    conf.eliteSelectionOperator = eliteSelection!chromoType; // best chromosome allways survives
+    conf.parentSelectionOperator = randomTruncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
     //TODO
 
     //set callback functions

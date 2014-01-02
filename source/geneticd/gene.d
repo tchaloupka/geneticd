@@ -6,10 +6,22 @@ import std.traits;
 
 import geneticd.chromosome;
 
+interface ICloneable
+{
+    /**
+     * Create new object using current instance as a template.
+     */
+    pure nothrow ICloneable clone()
+    out(result)
+    {
+        assert(result !is null);
+    }
+}
+
 /**
  * Gene basic interface 
  */
-interface IGene(T)
+interface IGene(T) : ICloneable
 {
     /**
      * Gets the value of the gene
@@ -75,16 +87,6 @@ interface IGene(T)
      * Returns a hash of the object
      */
     nothrow size_t toHash() const;
-
-    /**
-     * Create new gene using current instance as a template
-     * It should use the same ranges, constraints, etc.
-     */
-    pure nothrow IGene!T clone()
-        out(result)
-    {
-        assert(result !is null);
-    }
 }
 
 /**
@@ -214,7 +216,11 @@ else
      * It should use the same ranges, constraints, etc.
      */
     pure nothrow BasicGene!T clone()
-        body
+    out(result)
+    {
+        assert(result !is null);
+    }
+    body
     {
         auto gene = cloneInternal();
         //copy rest of the non value properties
@@ -223,15 +229,7 @@ else
         return gene;
     }
     
-    pure nothrow protected abstract BasicGene!T cloneInternal()
-        out(result)
-    {
-        assert(result !is null);
-    }
-    body
-    {
-        return null;
-    }
+    pure nothrow protected abstract BasicGene!T cloneInternal();
 
     override string toString() const
     {

@@ -7,7 +7,7 @@ import std.math : isNaN;
 import geneticd.gene;
 import geneticd.configuration;
 
-interface IChromosome
+interface IChromosome : ICloneable
 {
     /**
      * Age of the chromosome - number of generation since chromosome was born
@@ -30,16 +30,6 @@ interface IChromosome
      * Set the fitness of this chromosome.
      */
     @property pure nothrow void fitness(double fitness);
-
-    /**
-     * Should this chromosome survive for the next generation?
-     */
-    @property pure nothrow bool survive() const;
-
-    /**
-     * Set if this chromosome should survive for the next generation unchanged
-     */
-    @property pure nothrow void survive(bool survive);
 
     /**
      * Has chromosome already been evaluated?
@@ -66,7 +56,6 @@ class Chromosome(T:IGene!G, G) : IChromosome
 
     protected double _fitness;
     protected uint _age;
-    protected bool _survive;
     protected T[] _genes;
     protected configType _configuration;
 
@@ -203,26 +192,6 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
-     * Should this chromosome survive for the next generation?
-     */
-    @property pure nothrow bool survive() const
-    {
-        assert(!isSample);
-
-        return this._survive;
-    }
-    
-    /**
-     * Set if this chromosome should survive for the next generation unchanged
-     */
-    @property pure nothrow void survive(bool survive)
-    {
-        assert(!isSample);
-
-        this._survive = survive;
-    }
-
-    /**
      * Has chromosome already been evaluated?
      */
     @property pure nothrow bool isEvaluated() const
@@ -281,7 +250,6 @@ class Chromosome(T:IGene!G, G) : IChromosome
         tmp ~= "(";
         if(isSample) tmp ~= "SAMPLE, ";
         tmp ~= format("age: %s, ", _age);
-        tmp ~= format("survive: %s, ", _survive);
         tmp ~= format("fitness: %s, ", _fitness);
         tmp ~= "[";
         foreach(g; _genes[0..$-1])
@@ -292,6 +260,22 @@ class Chromosome(T:IGene!G, G) : IChromosome
         tmp ~= to!string(_genes[$-1]);
         tmp ~= "])";
 
+        return tmp;
+    }
+
+    /**
+     * Clone current instance of chromosome
+     */
+    Chromosome!T clone()
+    out(result)
+    {
+        assert(result !is null);
+    }
+    body
+    {
+        auto tmp = new Chromosome!T(_configuration, this._genes);
+        tmp._fitness = this._fitness;
+        tmp._age = this._age;
         return tmp;
     }
 }
@@ -307,3 +291,5 @@ unittest
 
     writefln("Chromosome: %s", chromo);
 }
+
+//TODO: clone unittest
