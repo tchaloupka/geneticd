@@ -68,9 +68,13 @@ class Population(T:IChromosome)
 
         size_t evaluated;
         _totalFitness = 0;
-        foreach(ch; _chromosomes.filter!(a=>!a.isEvaluated))
+        _best = null;
+        foreach(ch; _chromosomes)
         {
-            ch.fitness = _configuration.fitnessFunction.evaluate(ch);
+            if(!ch.isEvaluated)
+            {
+                ch.fitness = _configuration.fitnessFunction.evaluate(ch);
+            }
             _totalFitness += ch.fitness;
             if((this._best is null) || this._best.fitness < ch.fitness) this._best = ch;
             evaluated++;

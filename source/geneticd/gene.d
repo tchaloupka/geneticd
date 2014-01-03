@@ -34,16 +34,6 @@ interface IGene(T) : ICloneable
     @property pure nothrow void value(T val);
 
     /**
-     * Gets the constraint checker of the gene
-     */
-    @property pure nothrow IConstraintChecker!T constraintChecker();
-    
-    /**
-     * Sets the constraint checker of the gene
-     */
-    @property pure nothrow void constraintChecker(IConstraintChecker!T checker);
-
-    /**
      * Number of atomic elements of the gene.
      * For example number genes has allways size = 1
      */
@@ -62,16 +52,8 @@ interface IGene(T) : ICloneable
 
     /**
      * Apply mutation operation to gene
-     * 
-     * Params:
-     *      percentage = probability of gene value change from -1 to 1
-     *      idx = index of atom gene value if it consists of more than one
      */
-    pure nothrow void mutate(double percentage, uint idx = 0)
-    in
-    {
-        assert(percentage >= -1.0 && percentage <= 1.0, "Percentage of mutation must be between -1.0 and 1.0");
-    }
+    pure nothrow void mutate();
 
     /**
      * Equality operator
@@ -90,21 +72,11 @@ interface IGene(T) : ICloneable
 }
 
 /**
- * Interface for checking if given gene value is valid to be set.
- * Called from value setter property of the gene.
- */
-interface IConstraintChecker(T)
-{
-    pure nothrow bool isValid(IGene!T gene, T value);
-}
-
-/**
  * Basic abstract class for all genes
  */
 abstract class BasicGene(T) : IGene!T
 {
     protected T _value;
-    protected IConstraintChecker!T _constraintChecker;
 
     /**
      * Gets the value of the gene
@@ -119,26 +91,7 @@ abstract class BasicGene(T) : IGene!T
      */
     @property pure nothrow void value(T val)
     {
-        if(_constraintChecker !is null && !_constraintChecker.isValid(this, val))
-            assert(false, "Constraint check failed");
-
         _value = val;
-    }
-
-    /**
-     * Gets the constraint checker of the gene
-     */
-    @property pure nothrow IConstraintChecker!T constraintChecker()
-    {
-        return _constraintChecker;
-    }
-    
-    /**
-     * Sets the constraint checker of the gene
-     */
-    @property pure nothrow void constraintChecker(IConstraintChecker!T checker)
-    {
-        _constraintChecker = checker;
     }
     
     /**
@@ -166,18 +119,8 @@ else
     
     /**
      * Apply mutation operation to gene
-     * 
-     * Params:
-     *      percentage = probability of gene value change from -1 to 1
-     *      idx = index of atom gene value if it consists of more than one
      */
-    pure nothrow abstract void mutate(double percentage, uint idx = 0)
-    in
-    {
-        //TODO: Repeated due to http://d.puremagic.com/issues/show_bug.cgi?id=6856
-        assert(percentage >= -1.0 && percentage <= 1.0, "Percentage of mutation must be between -1.0 and 1.0");
-    }
-    body{}
+    pure nothrow abstract void mutate();
 
     /**
      * Equality operator
@@ -224,8 +167,7 @@ else
     {
         auto gene = cloneInternal();
         //copy rest of the non value properties
-        gene._constraintChecker = _constraintChecker;
-        
+
         return gene;
     }
     
@@ -265,22 +207,12 @@ class BoolGene : BasicGene!bool
     }
 
     /**
-     * Apply mutation operation to gene
-     * 
-     * Params:
-     *      percentage = probability of gene value change from -1 to 1
-     *      idx = index of atom gene value if it consists of more than one
+     * Apply mutation operation to gene.
+     * For BoolGene the flip bit mutation is used.
      */
-    pure nothrow override void mutate(double percentage, uint idx = 0)
-    in
+    pure nothrow override void mutate()
     {
-        //TODO: Repeated due to http://d.puremagic.com/issues/show_bug.cgi?id=6856 and because no AssertError is thrown without this..
-        assert(percentage >= -1.0 && percentage <= 1.0, "Percentage of mutation must be between -1.0 and 1.0");
-    }
-    body
-    {
-        if(percentage > 0) value = true;
-        if(percentage < 0) value = false;
+        _value = !_value;
     }
 
     /// BoolGene tests
@@ -290,16 +222,12 @@ class BoolGene : BasicGene!bool
         import std.exception;
 
         IGene!bool gene = new BoolGene();
-        gene = gene.clone();
+        gene = cast(BoolGene)gene.clone();
         gene.value = true;
 
-        assertThrown!AssertError(gene.mutate(2));
-
-        gene.mutate(0);
-        assert(gene.value == true);
-        gene.mutate(-0.5);
+        gene.mutate();
         assert(gene.value == false);
-        gene.mutate(0.5);
+        gene.mutate();
         assert(gene.value == true);
 
         assert((gene is null) == false);

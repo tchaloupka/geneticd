@@ -215,7 +215,9 @@ class Chromosome(T:IGene!G, G) : IChromosome
         {
             gene.clean();
         }
+
         _genes.length = 0;
+        _fitness = double.init;
     }
 
     /**
@@ -229,6 +231,47 @@ class Chromosome(T:IGene!G, G) : IChromosome
         {
             gene.setRandomValue();
         }
+
+        _fitness = double.init;
+    }
+
+    /**
+     * Mutate some of chromosome genes
+     * 
+     * Returns:
+     *      number of mutated genes
+     */
+    uint mutate()
+    out(result)
+    {
+        assert(result <= _genes.length);
+        assert(isNaN(_fitness));
+    }
+    body
+    {
+        assert(!isSample);
+
+        import std.random : uniform;
+
+        uint numMutated = 0;
+        
+        foreach(i, gene; _genes)
+        {
+            //mutate each gene of chromosome with a given probability
+            if(uniform(0.0, 1.0) <= _configuration.mutationProbability) 
+            {
+                _configuration.callbacks.invoke!"onBeforeMutate"(this, i);
+
+                gene.mutate();
+                numMutated++;
+
+                _configuration.callbacks.invoke!"onAfterMutate"(this, i);
+            }
+        }
+
+        _fitness = double.init;
+
+        return numMutated;
     }
 
     /**
@@ -270,6 +313,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
     out(result)
     {
         assert(result !is null);
+        assert(result !is this);
     }
     body
     {

@@ -91,70 +91,11 @@ class EliteSelection(T:IChromosome) : SelectionBase!T
     }
 }
 
+
 /**
- * Simple selection operator which repeatedly selects parents from some slice of original chromosomes
+ * Simple selection operator which repeatedly selects parents from the better some slice of original chromosomes
  */
 class TruncationSelection(T:IChromosome) : SelectionBase!T
-{
-    private uint _subSize;
-    private uint _idx;
-    
-    /**
-     * Population chromosomes need to be sorted
-     */
-    @property pure nothrow override bool needSorted() const
-    {
-        return true;
-    }
-    
-    /**
-     * Constructor
-     * 
-     * Params:
-     *      subSize = number of chromosomes to select from. It needs to be < size of the population
-     */
-    this(uint subSize)
-    {
-        assert(subSize > 1);
-        
-        this._subSize = subSize;
-    }
-
-    /**
-     * Select some chromosomes from population
-     */
-    pure nothrow protected override T[] selectInternal(Population!T population)
-    in
-    {
-        assert(population.chromosomes.length >= _subSize);
-    }
-    out(result)
-    {
-        assert(result.length == 2);
-    }
-    body
-    {
-        T[] tmp;
-        if(_idx < _subSize - 1)
-        {
-            tmp = population.chromosomes[_idx.._idx+2];
-            _idx += 2;
-            if(_idx == _subSize) _idx = 0;
-        }
-        else
-        {
-            tmp ~= population.chromosomes[_subSize-1];
-            tmp ~= population.chromosomes[0];
-            _idx = 1;
-        }
-        return tmp;
-    }
-}
-
-/**
- * Simple selection operator which repeatedly selects parents from some slice of original chromosomes
- */
-class RandomTruncationSelection(T:IChromosome) : SelectionBase!T
 {
     import std.random : uniform;
 
@@ -217,14 +158,6 @@ auto eliteSelection(T:IChromosome)(uint numElite = 1)
 auto truncationSelection(T:IChromosome)(uint subSize)
 {
     return new TruncationSelection!T(subSize);
-}
-
-/**
- * Helper function to create instance of TruncationSelection operator
- */
-auto randomTruncationSelection(T:IChromosome)(uint subSize)
-{
-    return new RandomTruncationSelection!T(subSize);
 }
 
 //TODO: unittests

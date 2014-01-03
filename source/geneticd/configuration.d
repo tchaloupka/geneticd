@@ -11,17 +11,29 @@ import geneticd.operators;
  */
 class Configuration(T:IChromosome)
 {
-    struct CallBacks
+    struct Callbacks
     {
         import std.traits : isDelegate;
         import std.string : format;
 
+        /// Called when initial population is initialized
+        void delegate(StatusInfo) onInitialPopulation;
+
         /// Called when fitness is determined for all chromosomes in current population
         void delegate(StatusInfo) onFitness;
 
-        void invoke(alias CallBack,U...)(U params)
+        /// Called when elite chromosomes are selected
+        void delegate(T[] elite) onElite;
+
+        /// Called when chromosome is going to be mutated
+        void delegate(T chromosome, size_t geneIdx) onBeforeMutate;
+
+        /// Called when chromosome has been mutated
+        void delegate(T chromosome, size_t geneIdx) onAfterMutate;
+
+        void invoke(alias Callback,U...)(U params)
         {
-            mixin(format("if(%s !is null) try{ %s(params);} catch{}", CallBack, CallBack));
+            mixin(format("if(%s !is null) try{ %s(params);} catch{}", Callback, Callback));
         }
     }
 
@@ -35,7 +47,7 @@ class Configuration(T:IChromosome)
     private double _mutationProbability = 0.01;
 
     /// Simple struct to hold callback delegates
-    CallBacks callBacks;
+    Callbacks callbacks;
 
     /// Default constructor
     this()
@@ -225,7 +237,7 @@ class Configuration(T:IChromosome)
      */
     @property pure nothrow double mutationProbability() const
     {
-        return _crossoverProbability;
+        return _mutationProbability;
     }
     
     /**
@@ -240,7 +252,7 @@ class Configuration(T:IChromosome)
     {
         assert(probability > 0.0 && probability < 1.0);
         
-        _crossoverProbability = probability;
+        _mutationProbability = probability;
     }
 }
 

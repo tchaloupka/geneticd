@@ -2,7 +2,7 @@ module geneticd.geneticalgorithm;
 
 import std.algorithm : map;
 import std.array : array;
-import std.random : dice;
+import std.random : uniform;
 
 import geneticd.configuration;
 import geneticd.chromosome;
@@ -44,16 +44,9 @@ class GA(T:IChromosome)
             _status.bestFitness = _population.best.fitness;
             _status.averageFitness = _population.totalFitness / _population.chromosomes.length;
 
-            _configuration.callBacks.invoke!"onFitness"(_status);
+            _configuration.callbacks.invoke!"onFitness"(_status);
         }
         while(!_configuration.terminateFunction.terminate(_status));
-    }
-
-    private T cloneChromosome(T chromosome)
-    {
-        auto tmp = chromosome.clone();
-        tmp.age = tmp.age + 1;  // tmp.age++ not working yet -> @property is not lvalue
-        return tmp;
     }
 
     /// prepare next generation
@@ -64,40 +57,53 @@ class GA(T:IChromosome)
             initRandomPopulation();
             assert(_population !is null);
             _status.generations = 1;
+            _configuration.callbacks.invoke!"onInitialPopulation"(_status);
         }
         else
         {
             auto newPopulation = new Population!T(_configuration, false);
-            newPopulation ~= new T(_configuration);
 
             // handle special case of selection operator
             if(_configuration.eliteSelectionOperator !is null)
             {
                 //select elite chromosomes
-                newPopulation ~= _configuration.eliteSelectionOperator.select(_population).map!(a=>cloneChromosome(a)).array;
+                auto tmp = _configuration.eliteSelectionOperator.select(_population).map!((a)
+                {
+                    auto elite = a.clone();
+                    elite.age = elite.age + 1; //make older as it is not modified
+                    return elite;
+                }).array;
+                _configuration.callbacks.invoke!"onElite"(tmp);
+                newPopulation ~= tmp;
             }
 
+            bool addAge;
             while(newPopulation.chromosomes.length < _configuration.populationSize)
             {
                 // 1. select parent chromosomes
-                auto tmp = _configuration.parentSelectionOperator.select(_population).map!(a=>cloneChromosome(a)).array;
+                auto tmp = _configuration.parentSelectionOperator.select(_population).map!(a=>a.clone()).array;
 
-                // 2. crossover parents
-                if(dice(_configuration.crossoverProbability, 1.0 - _configuration.crossoverProbability) == 0)
+                foreach(ch; tmp)
                 {
-                    //TODO: crossover
-                    newPopulation ~= tmp;
-                }
-                else
-                {
-                    //use as they are
-                    newPopulation ~= tmp;
-                }
+                    // 2. crossover parents
+                    addAge = true;
+                    if(uniform(0.0, 1.0) <= _configuration.crossoverProbability)
+                    {
+                        //TODO: crossover
+                        addAge = false; //ofspring has age = 0
+                    }
 
-                // 3. mutate offspring
+                    // 3. mutate offspring (or parents if crossover is not applied)
+                    auto mutated = ch.mutate();
+
+                    if(mutated) ch.age = 0; //new individual so age = 0
+                    else if(addAge) ch.age = ch.age + 1; //no change, so individual is getting older
+
+                    _status.mutatedGenes += mutated;
+                }
 
                 // 4. add to new population
-
+                newPopulation ~= tmp;
             }
 
             _population = newPopulation;
@@ -141,6 +147,9 @@ struct StatusInfo
 
     /// Average fitness of the current population
     double averageFitness;
+
+    /// Total number of mutated genes
+    size_t mutatedGenes;
 }
 
 /// Simple guessing of bool array content
@@ -188,15 +197,32 @@ unittest
 
     //add GA operations
     conf.eliteSelectionOperator = eliteSelection!chromoType; // best chromosome allways survives
-    conf.parentSelectionOperator = randomTruncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
+    conf.parentSelectionOperator = truncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
     //TODO
 
     //set callback functions
     GA!chromoType ga;
-    conf.callBacks.onFitness = (s)
+    conf.callbacks.onInitialPopulation = (s)
     {
-        writefln("Gen %s, Eval: %s, Best: %s, Avg: %s", s.generations, s.evaluations, s.bestFitness, s.averageFitness);
+        assert(isNaN(s.bestFitness));
+        assert(isNaN(s.averageFitness));
+        assert(s.mutatedGenes == 0);
+        assert(s.generations == 1);
+        assert(s.evaluations == 0);
+    };
+    conf.callbacks.onFitness = (s)
+    {
+        writefln("Gen %s, Eval: %s, Best: %s, Avg: %s, Mut: %s", s.generations, s.evaluations, s.bestFitness, s.averageFitness, s.mutatedGenes);
         writeln(ga.population);
+    };
+    conf.callbacks.onElite = (elite)
+    {
+        assert(elite.length > 0);
+        foreach(el; elite)
+        {
+            writefln("Elite: %s", el);
+            writeln();
+        }
     };
 
     //execute GA
