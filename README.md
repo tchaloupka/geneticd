@@ -28,7 +28,7 @@ I'm not an genetic or evolution algorithms expert nor experienced D programmer (
 
 Sample
 ------
-
+```D
     // Guessing of the array content
 
     alias Chromosome!BoolGene chromoType;   // define chromosome type
@@ -75,11 +75,12 @@ Sample
 
     writefln("Input: [%s]", target.map!(to!string).joiner(", "));
     writefln("Best: [%s]", ga.population.best);
+```
 
 TODO
 ----
-    - add numeric genes with boundaries
-    - create some samples to solve known problems and to show how to use the lib
-    - saving/loading population to/from file
-    - parallel processing (probably chunk the population and fitness chunks in own tasks)
-    - ??? (fill the bug or pull request)
+- [ ] add numeric genes with boundaries
+- [ ] create some samples to solve known problems and to show how to use the lib
+- [ ] saving/loading population to/from file
+- [ ] parallel processing (probably chunk the population and fitness chunks in own tasks)
+- [ ] ??? (fill the bug or pull request)
