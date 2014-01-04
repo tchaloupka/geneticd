@@ -215,7 +215,8 @@ unittest
     conf.eliteSelectionOperator = eliteSelection!chromoType; // best chromosome allways survives
     //conf.parentSelectionOperator = truncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
     conf.parentSelectionOperator = weightedRouletteSelection!chromoType();
-    conf.crossoverOperator = singlePointCrossover!chromoType();
+    //conf.crossoverOperator = singlePointCrossover!chromoType();
+    conf.crossoverOperator = twoPointCrossover!chromoType();
 
     //set callback functions
     GA!chromoType ga;

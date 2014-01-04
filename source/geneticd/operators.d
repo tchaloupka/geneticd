@@ -321,6 +321,36 @@ class SinglePointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFuncti
 }
 
 /**
+ * Simple crossover operator which randomly select 2 indexes of gene and swap middle genes of parents
+ */
+class TwoPointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.random : uniform;
+    import std.algorithm : swapRanges, swap;
+    
+    /// Execute crossover operator
+    void cross(StatusInfo status, T[] chromosomes...)
+        in
+    {
+        assert(chromosomes.length == 2);
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+    }
+    body
+    {
+        auto idx1 = uniform(0, chromosomes[0].genes.length);
+        auto idx2 = uniform(0, chromosomes[0].genes.length);
+        if(idx1 > idx2) swap(idx1, idx2);
+        
+        swapRanges(chromosomes[0].genes[idx1..idx2+1], chromosomes[1].genes[idx1..idx2+1]);
+        foreach(ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+        }
+    }
+}
+
+/**
  * Helper function to create instance of EliteSelection operator
  */
 auto eliteSelection(T:IChromosome)(uint numElite = 1)
@@ -358,6 +388,14 @@ auto rankSelection(T:IChromosome)()
 auto singlePointCrossover(T:IChromosome)()
 {
     return new SinglePointCrossover!T();
+}
+
+/**
+ * Helper function to create instance of SinglePointCrossover operator
+ */
+auto twoPointCrossover(T:IChromosome)()
+{
+    return new TwoPointCrossover!T();
 }
 
 //TODO: unittests
