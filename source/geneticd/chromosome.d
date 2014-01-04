@@ -322,18 +322,29 @@ class Chromosome(T:IGene!G, G) : IChromosome
         tmp._age = this._age;
         return tmp;
     }
+
+    unittest
+    {
+        import std.math : isNaN;
+        
+        alias Chromosome!BoolGene chromoType;
+        
+        auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), 10));
+        auto chromo = new chromoType(conf);
+        
+        assert(!chromo.isEvaluated);
+        assert(chromo.age == 0);
+        assert(isNaN(chromo.fitness));
+        assert(chromo._genes.length == 10);
+
+        auto clone = chromo.clone();
+
+        assert(chromo !is clone);
+        assert(clone._genes.length == 10);
+        foreach(i, g; chromo._genes)
+        {
+            assert(clone[i] == g);
+            assert(clone[i] !is g);
+        }
+    }
 }
-
-unittest
-{
-    import std.stdio;
-
-    alias Chromosome!BoolGene chromoType;
-
-    auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), 10));
-    auto chromo = new chromoType(conf);
-
-    writefln("Chromosome: %s", chromo);
-}
-
-//TODO: clone unittest

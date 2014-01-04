@@ -61,11 +61,14 @@ class GA(T:IChromosome)
         }
         else
         {
+            //TODO: make pool of chromosomes to reuse chromosome instances(and use it where new Chromosome is called),
+            //also reuse 2 populations instead of creating new ones
             auto newPopulation = new Population!T(_configuration, false);
 
             // handle special case of selection operator
             if(_configuration.eliteSelectionOperator !is null)
             {
+                _configuration.eliteSelectionOperator.init(_status, _population);
                 //select elite chromosomes
                 auto tmp = _configuration.eliteSelectionOperator.select(_population).map!((a)
                 {
@@ -77,11 +80,14 @@ class GA(T:IChromosome)
                 newPopulation ~= tmp;
             }
 
+            //parent selection
+            _configuration.parentSelectionOperator.init(_status, _population);
             bool addAge;
             while(newPopulation.chromosomes.length < _configuration.populationSize)
             {
                 // 1. select parent chromosomes
                 auto tmp = _configuration.parentSelectionOperator.select(_population).map!(a=>a.clone()).array;
+                //TODO: onSelected
 
                 foreach(ch; tmp)
                 {
@@ -197,7 +203,8 @@ unittest
 
     //add GA operations
     conf.eliteSelectionOperator = eliteSelection!chromoType; // best chromosome allways survives
-    conf.parentSelectionOperator = truncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
+    //conf.parentSelectionOperator = truncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
+    conf.parentSelectionOperator = weightedRouletteSelection!chromoType();
     //TODO
 
     //set callback functions

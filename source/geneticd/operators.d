@@ -2,6 +2,7 @@ module geneticd.operators;
 
 import geneticd.chromosome;
 import geneticd.population;
+import geneticd.geneticalgorithm : StatusInfo;
 
 /**
  * Interface of genetic selection operators.
@@ -13,6 +14,12 @@ interface ISelectionOperator(T:IChromosome)
      * Population chromosomes need to be sorted
      */
     @property pure nothrow bool needSorted() const;
+
+    /**
+     * Initialize the selection operator befor its usage.
+     * It's used to prepare some calculations which are then used to select parent chromosomes.
+     */
+    void init(StatusInfo status, Population!T population);
 
     /**
      * Select some chromosomes from population
@@ -37,6 +44,16 @@ abstract class SelectionBase(T:IChromosome) : ISelectionOperator!T
     }
 
     /**
+     * Initialize the selection operator befor its usage.
+     * It's used to prepare some calculations which are then used to select parent chromosomes.
+     */
+    void init(StatusInfo status, Population!T population)
+    {
+        if(needSorted) population.sortChromosomes();
+        initInternal(status, population);
+    }
+
+    /**
      * Select some chromosomes from population
      */
     T[] select(Population!T population)
@@ -46,8 +63,12 @@ abstract class SelectionBase(T:IChromosome) : ISelectionOperator!T
     }
     body
     {
-        if(needSorted) population.sortChromosomes();
         return selectInternal(population);
+    }
+
+    protected void initInternal(StatusInfo status, Population!T population)
+    {
+        //do nothing here
     }
 
     protected abstract T[] selectInternal(Population!T population);
@@ -85,7 +106,7 @@ class EliteSelection(T:IChromosome) : SelectionBase!T
     /**
      * Select some chromosomes from population
      */
-    pure nothrow protected override T[] selectInternal(Population!T population)
+    protected override T[] selectInternal(Population!T population)
     {
         return population.chromosomes[0.._numElite];
     }
@@ -137,12 +158,119 @@ class TruncationSelection(T:IChromosome) : SelectionBase!T
     body
     {
         T[] tmp;
-        tmp ~= population.chromosomes[uniform(0, _subSize)];
-        tmp ~= population.chromosomes[uniform(0, _subSize)];
+        tmp ~= population[uniform(0, _subSize)];
+        tmp ~= population[uniform(0, _subSize)];
 
         return tmp;
     }
 }
+
+/**
+ * Parents are selected randomly according to their weighted fitness probability.
+ * Chromosomes with greater fitness have greater probability to be choosen as parents.
+ * 
+ * Note:
+ * If some chromosome dominates with its fitness, than other solutions has little chance to be choosen.
+ * 
+ * Note:
+ * Alias method is used to select parents.
+ */
+class WeightedRouletteSelection(T:IChromosome) : SelectionBase!T
+{
+    import geneticd.utils : AliasMethodSelection;
+    import std.algorithm : map;
+    import std.array : array;
+
+    private AliasMethodSelection!double _alias;
+
+    /**
+     * Initialize the selection operator befor its usage.
+     * It's used to prepare some calculations which are then used to select parent chromosomes.
+     */
+    protected override void initInternal(StatusInfo status, Population!T population)
+    {
+        _alias.init(population.chromosomes.map!(ch=>ch.fitness).array, population.totalFitness);
+    }
+
+    /**
+     * Select some chromosomes from population
+     */
+    protected override T[] selectInternal(Population!T population)
+    out(result)
+    {
+        assert(result.length == 2);
+    }
+    body
+    {
+        T[] tmp;
+        tmp ~= population[_alias.next()];
+        tmp ~= population[_alias.next()];
+        
+        return tmp;
+    }
+}
+
+/**
+ * Modification of WeightedRouletteSelection.
+ * 
+ * Parents are selected randomly according to their rank, which is determined from their fitness probability.
+ * Chromosomes with greater fitness have greater probability to be choosen as parents.
+ * 
+ * Note:
+ * All chromosomes have chance to be selected. But this can slower the convergence, because best chromosomes do not differ
+ * so much from the others.
+ * 
+ * Note:
+ * Alias method is used to select parents.
+ */
+class RankSelection(T:IChromosome) : SelectionBase!T
+{
+    import geneticd.utils : AliasMethodSelection;
+    
+    private AliasMethodSelection!double _alias;
+
+    /**
+     * Population chromosomes need to be sorted
+     */
+    @property pure nothrow override bool needSorted() const
+    {
+        return true; //we need them sorted so we can make ranks easily
+    }
+
+    /**
+     * Initialize the selection operator befor its usage.
+     * It's used to prepare some calculations which are then used to select parent chromosomes.
+     */
+    protected override void initInternal(StatusInfo status, Population!T population)
+    {
+        alias population.chromosomes.length N;
+
+        //we need to create array of ranks for ordered chromosomes
+        size_t rank = N; //rank of best chromosome = number of chromosomes
+        _alias.init(
+            population.chromosomes.map!(ch=>rank--).array, //best chromosome has rank N, next N-1, etc.
+             (N*(N+1))/2); //sum of ranks
+    }
+    
+    /**
+     * Select some chromosomes from population
+     */
+    protected override T[] selectInternal(Population!T population)
+    out(result)
+    {
+        assert(result.length == 2);
+    }
+    body
+    {
+        T[] tmp;
+        tmp ~= population[_alias.next()];
+        tmp ~= population[_alias.next()];
+        
+        return tmp;
+    }
+}
+
+//TODO: TournamentSelection
 
 /**
  * Helper function to create instance of EliteSelection operator
@@ -158,6 +286,22 @@ auto eliteSelection(T:IChromosome)(uint numElite = 1)
 auto truncationSelection(T:IChromosome)(uint subSize)
 {
     return new TruncationSelection!T(subSize);
+}
+
+/**
+ * Helper function to create instance of WeightedRouletteSelection operator
+ */
+auto weightedRouletteSelection(T:IChromosome)()
+{
+    return new WeightedRouletteSelection!T();
+}
+
+/**
+ * Helper function to create instance of RankSelection operator
+ */
+auto rankSelection(T:IChromosome)()
+{
+    return new RankSelection!T();
 }
 
 //TODO: unittests

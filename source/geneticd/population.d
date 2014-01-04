@@ -149,6 +149,16 @@ class Population(T:IChromosome)
         return this;
     }
 
+    /**
+     * Enable accessing individual chromosomes with array index
+     */
+    pure nothrow T opIndex(size_t i)
+    {
+        assert(i<this._chromosomes.length);
+        
+        return this._chromosomes[i];
+    }
+
     void sortChromosomes()
     {
         assert(_evaluated);

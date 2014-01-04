@@ -1,8 +1,7 @@
 module geneticd.gene;
 
-import std.conv;
-import std.random;
-import std.traits;
+import std.conv : to;
+import std.traits : isScalarType;
 
 import geneticd.chromosome;
 
@@ -203,7 +202,8 @@ class BoolGene : BasicGene!bool
      */
     override void setRandomValue()
     {
-        _value = to!bool(uniform!"[]"(0, 1));
+        import std.random : dice;
+        _value = dice(0.5,0.5) == 1;
     }
 
     /**
