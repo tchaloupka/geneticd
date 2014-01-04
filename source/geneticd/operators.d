@@ -351,6 +351,37 @@ class TwoPointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctions
 }
 
 /**
+ * Crossover operator which randomly swaps each parent genes with the probability of 0.5.
+ * So about 50% of genes are swapped between parents to make new offspring.
+ */
+class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.random : uniform;
+    import std.algorithm : swap;
+    
+    /// Execute crossover operator
+    void cross(StatusInfo status, T[] chromosomes...)
+        in
+    {
+        assert(chromosomes.length == 2);
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+    }
+    body
+    {
+        foreach(i; 0..chromosomes[0].genes.length)
+        {
+            if(uniform(0.0, 1.0) > 0.5) swap(chromosomes[0].genes[i], chromosomes[1].genes[i]);
+        }
+
+        foreach(ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+        }
+    }
+}
+
+/**
  * Helper function to create instance of EliteSelection operator
  */
 auto eliteSelection(T:IChromosome)(uint numElite = 1)
@@ -396,6 +427,14 @@ auto singlePointCrossover(T:IChromosome)()
 auto twoPointCrossover(T:IChromosome)()
 {
     return new TwoPointCrossover!T();
+}
+
+/**
+ * Helper function to create instance of SinglePointCrossover operator
+ */
+auto uniformCrossover(T:IChromosome)()
+{
+    return new UniformCrossover!T();
 }
 
 //TODO: unittests

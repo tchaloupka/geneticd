@@ -216,7 +216,8 @@ unittest
     //conf.parentSelectionOperator = truncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
     conf.parentSelectionOperator = weightedRouletteSelection!chromoType();
     //conf.crossoverOperator = singlePointCrossover!chromoType();
-    conf.crossoverOperator = twoPointCrossover!chromoType();
+    //conf.crossoverOperator = twoPointCrossover!chromoType();
+    conf.crossoverOperator = uniformCrossover!chromoType();
 
     //set callback functions
     GA!chromoType ga;
