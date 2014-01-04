@@ -25,11 +25,26 @@ class Configuration(T:IChromosome)
         /// Called when elite chromosomes are selected
         void delegate(T[] elite) onElite;
 
+        /// Called when parent chromosome are selected
+        void delegate(T[] chromosomes) onSelected;
+
+        /// Called before parent chromosome will breed offspring
+        void delegate(T[] parents) onBeforeCrossover;
+
+        /// Called after parent chromosome bred offspring
+        void delegate(T[] ofspring) onAfterCrossover;
+
         /// Called when chromosome is going to be mutated
-        void delegate(T chromosome, size_t geneIdx) onBeforeMutate;
+        void delegate(T chromosome) onBeforeMutate;
+        
+        /// Called when chromosome has been mutated
+        void delegate(T chromosome, bool mutated) onAfterMutate;
+
+        /// Called when chromosome is going to be mutated
+        void delegate(T chromosome, size_t geneIdx) onBeforeGeneMutate;
 
         /// Called when chromosome has been mutated
-        void delegate(T chromosome, size_t geneIdx) onAfterMutate;
+        void delegate(T chromosome, size_t geneIdx) onAfterGeneMutate;
 
         void invoke(alias Callback,U...)(U params)
         {
@@ -43,6 +58,7 @@ class Configuration(T:IChromosome)
     private ITerminateFunction _terminateFunc;
     private ISelectionOperator!T _eliteSelectionOperator;
     private ISelectionOperator!T _parentSelectionOperator;
+    private ICrossoverOperator!T _crossoverOperator;
     private double _crossoverProbability = 0.8;
     private double _mutationProbability = 0.01;
 
@@ -194,9 +210,25 @@ class Configuration(T:IChromosome)
     /**
      * Operator to select parent chromosomes for crossover opertor.
      */
-    @property pure nothrow void parentSelectionOperator(ISelectionOperator!T eliteSel)
+    @property pure nothrow void parentSelectionOperator(ISelectionOperator!T selOp)
     {
-        _parentSelectionOperator = eliteSel;
+        _parentSelectionOperator = selOp;
+    }
+
+    /**
+     * Operator to crossover parent chromosomes.
+     */
+    @property pure nothrow ICrossoverOperator!T crossoverOperator()
+    {
+        return _crossoverOperator;
+    }
+    
+    /**
+     * Operator to crossover parent chromosomes.
+     */
+    @property pure nothrow void crossoverOperator(ICrossoverOperator!T crossOp)
+    {
+        _crossoverOperator = crossOp;
     }
 
     /**
@@ -255,4 +287,3 @@ class Configuration(T:IChromosome)
         _mutationProbability = probability;
     }
 }
-

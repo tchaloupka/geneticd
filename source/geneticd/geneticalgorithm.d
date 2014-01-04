@@ -29,6 +29,7 @@ class GA(T:IChromosome)
         assert(configuration !is null, "Configuration not set");
         assert(configuration.terminateFunction !is null, "Terminate function not set");
         assert(configuration.parentSelectionOperator !is null, "Parent selection operator not set");
+        assert(configuration.crossoverOperator !is null, "Crossover operator not set");
 
         this._configuration = configuration;
     }
@@ -87,23 +88,29 @@ class GA(T:IChromosome)
             {
                 // 1. select parent chromosomes
                 auto tmp = _configuration.parentSelectionOperator.select(_population).map!(a=>a.clone()).array;
-                //TODO: onSelected
+                _configuration.callbacks.invoke!"onSelected"(tmp);
 
+                // 2. crossover parents
+                addAge = true;
+                if(uniform(0.0, 1.0) <= _configuration.crossoverProbability)
+                {
+                    _configuration.callbacks.invoke!"onBeforeCrossover"(tmp);
+                    _configuration.crossoverOperator.cross(_status, tmp);
+                    _configuration.callbacks.invoke!"onAfterCrossover"(tmp);
+                    addAge = false; //ofspring has age = 0
+                    _status.crossovers += tmp.length;
+                 }
+
+                // 3. mutate offspring (or parents if crossover is not applied)
                 foreach(ch; tmp)
                 {
-                    // 2. crossover parents
-                    addAge = true;
-                    if(uniform(0.0, 1.0) <= _configuration.crossoverProbability)
-                    {
-                        //TODO: crossover
-                        addAge = false; //ofspring has age = 0
-                    }
-
-                    // 3. mutate offspring (or parents if crossover is not applied)
+                    _configuration.callbacks.invoke!"onBeforeMutate"(ch);
                     auto mutated = ch.mutate();
 
                     if(mutated) ch.age = 0; //new individual so age = 0
                     else if(addAge) ch.age = ch.age + 1; //no change, so individual is getting older
+
+                    _configuration.callbacks.invoke!"onAfterMutate"(ch, mutated > 0);
 
                     _status.mutatedGenes += mutated;
                 }
@@ -156,6 +163,9 @@ struct StatusInfo
 
     /// Total number of mutated genes
     size_t mutatedGenes;
+
+    /// Total number of crossovers
+    size_t crossovers;
 }
 
 /// Simple guessing of bool array content
@@ -177,12 +187,10 @@ unittest
     }
 
     writeln("GA - bool array guessing");
-    writeln("------------------------");
-    writefln("Input: [%s]", target.map!(to!string).joiner(", "));
 
     //create GA configuration
     auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), size));
-    conf.populationSize = 10;
+    conf.populationSize = 20;
 
     //set fitness function
     conf.fitnessFunction = simpleFitness!chromoType(delegate (ch)
@@ -199,13 +207,15 @@ unittest
 
     //set terminate function
     //conf.terminateFunction = fitnessTerminate!(size); //size of the input is also maximum fitness (all bool values are equal)
-    conf.terminateFunction = maxGenerationsTerminate!(10);
+    conf.terminateFunction = compositeTerminate(
+        maxGenerationsTerminate!(100),
+        fitnessTerminate!size); //target fitness is size of genomes
 
     //add GA operations
     conf.eliteSelectionOperator = eliteSelection!chromoType; // best chromosome allways survives
     //conf.parentSelectionOperator = truncationSelection!chromoType(conf.populationSize / 3); // 1/3 of best chromosomes is used to breed the next generation
     conf.parentSelectionOperator = weightedRouletteSelection!chromoType();
-    //TODO
+    conf.crossoverOperator = singlePointCrossover!chromoType();
 
     //set callback functions
     GA!chromoType ga;
@@ -219,7 +229,10 @@ unittest
     };
     conf.callbacks.onFitness = (s)
     {
-        writefln("Gen %s, Eval: %s, Best: %s, Avg: %s, Mut: %s", s.generations, s.evaluations, s.bestFitness, s.averageFitness, s.mutatedGenes);
+        writeln();
+        writeln("----------------------------------------------------------");
+        writefln("Gen %s, Eval: %s, Best: %s, Avg: %s, Cross: %s, Mut: %s", 
+                 s.generations, s.evaluations, s.bestFitness, s.averageFitness, s.crossovers, s.mutatedGenes);
         writeln(ga.population);
     };
     conf.callbacks.onElite = (elite)
@@ -227,9 +240,30 @@ unittest
         assert(elite.length > 0);
         foreach(el; elite)
         {
-            writefln("Elite: %s", el);
+            writefln("> Elite: %s", el);
             writeln();
         }
+    };
+    conf.callbacks.onSelected = (parents)
+    {
+        assert(parents.length > 0);
+        foreach(p; parents)
+        {
+            writefln("> Selected: %s", p);
+        }
+    };
+    conf.callbacks.onAfterCrossover = (offspiring)
+    {
+        assert(offspiring.length > 0);
+        foreach(off; offspiring)
+        {
+            writefln("> Crossover: %s", off);
+        }
+    };
+    conf.callbacks.onAfterMutate = (offspiring, mutated)
+    {
+        assert(offspiring !is null);
+        if(mutated) writefln("> Mutated: %s", offspiring);
     };
 
     //execute GA
@@ -237,4 +271,6 @@ unittest
     ga.run();
 
     writeln();
+    writefln("Input: [%s]", target.map!(to!string).joiner(", "));
+    writefln("Best: [%s]", ga.population.best);
 }

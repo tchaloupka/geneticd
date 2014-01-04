@@ -260,12 +260,12 @@ class Chromosome(T:IGene!G, G) : IChromosome
             //mutate each gene of chromosome with a given probability
             if(uniform(0.0, 1.0) <= _configuration.mutationProbability) 
             {
-                _configuration.callbacks.invoke!"onBeforeMutate"(this, i);
+                _configuration.callbacks.invoke!"onBeforeGeneMutate"(this, i);
 
                 gene.mutate();
                 numMutated++;
 
-                _configuration.callbacks.invoke!"onAfterMutate"(this, i);
+                _configuration.callbacks.invoke!"onAfterGeneMutate"(this, i);
             }
         }
 
@@ -282,6 +282,14 @@ class Chromosome(T:IGene!G, G) : IChromosome
         assert(i<this._genes.length);
 
         return this._genes[i];
+    }
+
+    /**
+     * Genes of chromosome
+     */
+    @property pure nothrow T[] genes()
+    {
+        return _genes;
     }
 
     override string toString() const

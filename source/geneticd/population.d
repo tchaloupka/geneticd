@@ -31,7 +31,7 @@ class Population(T:IChromosome)
     }
     
     /// The best genome of the population
-    @property pure nothrow T best()
+    @property pure nothrow const(T) best() const
     {
         return this._best;
     }

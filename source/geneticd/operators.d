@@ -3,6 +3,7 @@ module geneticd.operators;
 import geneticd.chromosome;
 import geneticd.population;
 import geneticd.geneticalgorithm : StatusInfo;
+import std.traits : MemberFunctionsTuple;
 
 /**
  * Interface of genetic selection operators.
@@ -30,6 +31,25 @@ interface ISelectionOperator(T:IChromosome)
         assert(population !is null);
         assert(population.chromosomes !is null);
         assert(!needSorted || population.sorted);
+    }
+}
+
+/**
+ * Interface for crossover operators
+ */
+interface ICrossoverOperator(T:IChromosome)
+{
+    /// Execute crossover operator
+    void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        assert(chromosomes !is null && chromosomes.length > 0);
+    }
+    out
+    {
+        import std.algorithm : all;
+        assert(chromosomes.all!(ch => ch.age == 0));
+        assert(chromosomes.all!(ch => !ch.isEvaluated));
     }
 }
 
@@ -273,6 +293,34 @@ class RankSelection(T:IChromosome) : SelectionBase!T
 //TODO: TournamentSelection
 
 /**
+ * Simple crossover operator which randomly select index of gene and swap genes of parents after that index
+ */
+class SinglePointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.random : uniform;
+    import std.algorithm : swapRanges;
+
+    /// Execute crossover operator
+    void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        assert(chromosomes.length == 2);
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+    }
+    body
+    {
+        auto idx = uniform(0, chromosomes[0].genes.length);
+
+        swapRanges(chromosomes[0].genes[idx..$], chromosomes[1].genes[idx..$]);
+        foreach(ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+        }
+    }
+}
+
+/**
  * Helper function to create instance of EliteSelection operator
  */
 auto eliteSelection(T:IChromosome)(uint numElite = 1)
@@ -302,6 +350,14 @@ auto weightedRouletteSelection(T:IChromosome)()
 auto rankSelection(T:IChromosome)()
 {
     return new RankSelection!T();
+}
+
+/**
+ * Helper function to create instance of SinglePointCrossover operator
+ */
+auto singlePointCrossover(T:IChromosome)()
+{
+    return new SinglePointCrossover!T();
 }
 
 //TODO: unittests
