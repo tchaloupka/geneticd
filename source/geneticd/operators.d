@@ -365,8 +365,69 @@ class TournamentSelection(T) : SelectionBase!T
     }
 }
 
+/**
+ * The individuals are mapped to contiguous segments of a line, such that each individual's segment is equal in size to its fitness exactly 
+ * as in roulette-wheel selection. Here equally spaced pointers are placed over the line as many as there are individuals to be selected.
+ * Consider N the number of individuals to be selected, then the distance between the pointers are 1/N and the position of the first pointer 
+ * is given by a randomly generated number in the range [0, 1/N].
+ * 
+ * These pointers are prepared before actual selection, so when init is called, selection array of indexes to actual chromosomes is initialized.
+ * When selecting, the random 2 parents are choosen from the selection array.
+ * 
+ * More fitted chromosomes can be more than once in selection array so it has a better chance to be selected as a parent.
+ */
+class StochasticUniversalSamplingSelection(T:IChromosome) : SelectionBase!T
+{
+    import std.random : uniform;
+
+    private size_t[] _selection; //contains indexes of selected chromosomes from population to select from
+
+    this(in size_t selectionSize)
+    {
+        _selection.length = selectionSize;
+    }
+
+    /**
+     * Initialize the selection operator befor its usage.
+     * It's used to prepare some calculations which are then used to select parent chromosomes.
+     */
+    protected override void initInternal(StatusInfo status, Population!T population)
+    {
+        auto dist = population.totalFitness/_selection.length;
+        auto prob = uniform(0.0, dist); //initial probability
+        auto sum = 0.0;
+        size_t popIdx = 0;
+
+        foreach(i; 0.._selection.length)
+        {
+            //add next chromosome from population
+            while(sum < prob) sum += population[popIdx++].fitness;
+
+            //add index of current chromosome to selection
+            _selection[i] = popIdx-1; //as we are pointing on the next one
+        }
+    }
+    
+    /**
+     * Select some chromosomes from population
+     */
+    protected override T[] selectInternal(Population!T population)
+    out(result)
+    {
+        assert(result.length == 2);
+    }
+    body
+    {
+        //just random select from selection list
+        T[] tmp;
+        tmp ~= population[uniform(0, _selection.length)];
+        tmp ~= population[uniform(0, _selection.length)];
+
+        return tmp;
+    }
+}
+
 //TODO: NonLinearRankSelection
-//TODO: Stochastic universal sampling
 
 /**
  * Simple crossover operator which randomly select index of gene and swap genes of parents after that index
@@ -499,6 +560,17 @@ auto rankSelection(T:IChromosome)()
 auto tournamentSelection(T:IChromosome)(in size_t tournamentSize, in double probability)
 {
     return new TournamentSelection!T(tournamentSize, probability);
+}
+
+/**
+ * Helper function to create instance of StochasticUniversalSamplingSelection operator
+ * 
+ * Params:
+ *      selectionSize = number of pointers to create to selection
+ */
+auto stochasticSelection(T:IChromosome)(in size_t selectionSize)
+{
+    return new StochasticUniversalSamplingSelection!T(selectionSize);
 }
 
 /**
