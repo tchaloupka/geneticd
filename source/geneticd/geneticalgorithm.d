@@ -217,7 +217,8 @@ unittest
     //conf.parentSelectionOperator = weightedRouletteSelection!chromoType();
     //conf.parentSelectionOperator = tournamentSelection!chromoType(5, 0.9);
     //conf.parentSelectionOperator = stochasticSelection!chromoType(10);
-    conf.parentSelectionOperator = rankSelection!chromoType(1.8);
+    //conf.parentSelectionOperator = rankSelection!chromoType(1.8);
+    conf.parentSelectionOperator = rankSelection!(chromoType, false)(3.0);
 
     //conf.crossoverOperator = singlePointCrossover!chromoType();
     //conf.crossoverOperator = twoPointCrossover!chromoType();

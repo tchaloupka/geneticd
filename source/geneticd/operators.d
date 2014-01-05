@@ -87,6 +87,10 @@ abstract class SelectionBase(T:IChromosome) : ISelectionOperator!T
     }
 
     protected void initInternal(StatusInfo status, Population!T population)
+    in
+    {
+    }
+    body
     {
         //do nothing here
     }
@@ -237,8 +241,8 @@ class WeightedRouletteSelection(T:IChromosome) : SelectionBase!T
  * Chromosomes with greater fitness have greater probability to be choosen as parents.
  * 
  * Note:
- * Linear ranking is used so all chromosomes have chance to be selected. But this can slower the convergence, 
- * because best chromosomes do not differ so much from the others.
+ * Linear ranking is used so all chromosomes have chance to be selected. But this can slower the convergence, because best chromosomes do not differ so much from the others.
+ * Non linear solves this problem as it gives better chromosomes higher rank and worse chromosomes lower than with linear ranking.
  * 
  * Note:
  * Alias method is used to select parents.
@@ -255,6 +259,13 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
     private AliasMethodSelection!double _alias;
     private double _sp;
 
+    static if(!linear)
+    {
+        private double _lastRoot;
+        private size_t _lastSize;
+        private double _lastSumRootPower;
+    }
+
     /**
      * Calculation function for linear ranking
      * 
@@ -270,7 +281,7 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
     {
         assert(pos<length);
         assert(length > 1);
-        static if(linear) assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
+        assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
     }
     out(result)
     {
@@ -282,7 +293,79 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
         return 2-SP+2*(SP-1)*pos/(length-1);
     }
 
+    /**
+     * Calculates the root for function: 0 = (SP-N).X^(N-1) + SP.X^(N-2) + ... + SP.X + SP
+     * 
+     * Params:
+     *      length = number of individuals
+     *      selectivePressure = must be in [1..N-2]
+     *      sumRootPower = output of sumarized powers of root^(i) where i=[0..N-1]
+     */
+    static double getNonLinearRoot(in size_t length, in double selectivePressure, out double sumRootPower)
+    in
+    {
+        assert(length > 2);
+        assert(selectivePressure >= 1.0 && selectivePressure <= length - 2);
+    }
+    out(result)
+    {
+        assert(result > 0.0);
+        assert(sumRootPower > 0.0);
+    }
+    body
+    {
+        import std.math : pow;
+
+        alias selectivePressure SP;
+
+        double root;
+
+        //TODO: implement
+        if(SP == 3.0) root = 1.3573328;
+        else assert(false, "Not implemented");
+
+        sumRootPower = 0;
+        foreach(i; 0..length)
+        {
+            sumRootPower += pow(root, i);
+        }
+
+        return root;
+    }
+
+    /**
+     * Calculation function for non linear ranking
+     * 
+     * Params:
+     *      pos = zero based index of item to rank. Note that 0 means the least fitted, length-1 means the fittest.
+     *      length = number of individuals to rank
+     *      root = poly function root which is calculated with getNonLinearRoot function
+     *      sumRootPower = precomputed sum of root powers in 0..N-1 interval
+     */
+    static double getNonLinearRank(in size_t pos, in size_t length, in double root, in double sumRootPower)
+    in
+    {
+        import std.math : isNaN;
+        assert(!isNaN(root));
+        assert(!isNaN(sumRootPower));
+        assert(root > 0.0 && sumRootPower > 0.0);
+    }
+    out(result)
+    {
+        assert(result > 0.0);
+    }
+    body
+    {
+        import std.math : pow;
+        return length * pow(root, pos) / sumRootPower;
+    }
+
     this(in double selectivePressure)
+    in
+    {
+        static if(linear) assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
+    }
+    body
     {
         _sp = selectivePressure;
     }
@@ -300,20 +383,34 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
      * It's used to prepare some calculations which are then used to select parent chromosomes.
      */
     protected override void initInternal(StatusInfo status, Population!T population)
+    in
+    {
+        static if(!linear) assert(_sp >= 1.0 && _sp <= population.chromosomes.length - 2);
+    }
+    body
     {
         immutable size_t N = population.chromosomes.length;
+
+        size_t pos = N-1; //we start with N-1 because first chromosome is fittest and linear rank for 0 is the lowest
 
         //we need to create array of ranks for ordered chromosomes
         static if(linear)
         {
-            size_t pos = N-1; //we start with N-1 because first chromosome is fittest and linear rank for 0 is the lowest
             _alias.init(
                 population.chromosomes.map!(ch=>getLinearRank(pos--, N, _sp)).array, 
                 );
         }
         else
         {
-            assert(false, "Not implemented");
+            if(_lastSize != N)
+            {
+                _lastSize = N;
+                _lastRoot = getNonLinearRoot(N, _sp, _lastSumRootPower);
+            }
+
+            _alias.init(
+                population.chromosomes.map!(ch=>getNonLinearRank(pos--, N, _lastRoot, _lastSumRootPower)).array, 
+                );
         }
     }
     
@@ -336,6 +433,8 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
 
     unittest
     {
+        import std.math : approxEqual;
+
         double[11] test;
         foreach(i; 0..11)
         {
@@ -343,6 +442,17 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
         }
 
         assert(test == [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]);
+
+        double sum;
+        auto root = getNonLinearRoot(11, 3.0, sum);
+        assert(approxEqual(root, 1.357333));
+
+        foreach(i; 0..11)
+        {
+            test[i] = getNonLinearRank(i, 11, root, sum);
+        }
+
+        assert(approxEqual(test[],[0.14, 0.19, 0.26, 0.35, 0.48, 0.65, 0.88, 1.20, 1.63, 2.21, 3.00]));
     }
 }
 
@@ -605,7 +715,7 @@ auto rankSelection(T:IChromosome, bool linear = true)(in double selectivePressur
 in
 {
     static if(linear) assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
-    else assert(false, "Not implemented");
+    else assert(selectivePressure >= 1.0);
 }
 body
 {
