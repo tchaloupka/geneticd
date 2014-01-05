@@ -1,7 +1,7 @@
 {
 	"name": "geneticd",
 	"description": "A genetic algorithm for D",
-	"copyright": "Copyright © 2013, tomas",
+	"copyright": "Copyright © 2013, Tomáš Chaloupka",
 	"authors": ["Tomáš Chaloupka"],
 	"license": "MIT",
 	"targetType": "library",
