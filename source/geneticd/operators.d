@@ -261,6 +261,7 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
 
     static if(!linear)
     {
+        import geneticd.utils : Polynom;
         private double _lastRoot;
         private size_t _lastSize;
         private double _lastSumRootPower;
@@ -276,7 +277,7 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
      *                          It has to be in [1.0..2.0] range. 1 means flat (all individuals rank=1), 
      *                          2 means least flat (best has rank=2, worst has rank=0)
      */
-    static double getLinearRank(in size_t pos, in size_t length, in double selectivePressure)
+    private static double getLinearRank(in size_t pos, in size_t length, in double selectivePressure)
     in
     {
         assert(pos<length);
@@ -301,7 +302,7 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
      *      selectivePressure = must be in [1..N-2]
      *      sumRootPower = output of sumarized powers of root^(i) where i=[0..N-1]
      */
-    static double getNonLinearRoot(in size_t length, in double selectivePressure, out double sumRootPower)
+    private static double getNonLinearRoot(in size_t length, in double selectivePressure, out double sumRootPower)
     in
     {
         assert(length > 2);
@@ -318,11 +319,17 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
 
         alias selectivePressure SP;
 
-        double root;
+        double[] coeficients;
+        coeficients.length = length;
+        foreach(ref c; coeficients) c = SP;
+        coeficients[$-1] = SP - length;
 
-        //TODO: implement
-        if(SP == 3.0) root = 1.3573328;
-        else assert(false, "Not implemented");
+        auto poly = Polynom(coeficients);
+
+//            if(SP == 3.0) root = 1.3573328;
+//            else assert(false, "Not implemented");
+
+        double root = poly.findRoot(2); //TODO: it is not guaranteed yet that it finds root > 0
 
         sumRootPower = 0;
         foreach(i; 0..length)
@@ -342,7 +349,7 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
      *      root = poly function root which is calculated with getNonLinearRoot function
      *      sumRootPower = precomputed sum of root powers in 0..N-1 interval
      */
-    static double getNonLinearRank(in size_t pos, in size_t length, in double root, in double sumRootPower)
+    private static double getNonLinearRank(in size_t pos, in size_t length, in double root, in double sumRootPower)
     in
     {
         import std.math : isNaN;
@@ -446,13 +453,24 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
         double sum;
         auto root = getNonLinearRoot(11, 3.0, sum);
         assert(approxEqual(root, 1.357333));
-
         foreach(i; 0..11)
         {
             test[i] = getNonLinearRank(i, 11, root, sum);
         }
 
         assert(approxEqual(test[],[0.14, 0.19, 0.26, 0.35, 0.48, 0.65, 0.88, 1.20, 1.63, 2.21, 3.00]));
+
+        root = getNonLinearRoot(11, 2.0, sum);
+        assert(approxEqual(root, 1.1796301));
+        foreach(i; 0..11)
+        {
+            test[i] = getNonLinearRank(i, 11, root, sum);
+        }
+
+        import std.stdio;
+        writeln(test);
+
+        assert(approxEqual(test[],[0.38, 0.45, 0.53, 0.63, 0.74, 0.88, 1.03, 1.22, 1.44, 1.70, 2.00]));
     }
 }
 

@@ -56,6 +56,34 @@ struct Stack(T) if (isNumeric!T)
         _empty = true;
         _idx = 0;
     }
+
+    unittest
+    {
+        Stack!int stack;
+        assert(stack.empty);
+        stack.push(99);
+        foreach(n; 1..10)
+        {
+            stack.push(n);
+        }
+        
+        foreach(n; 1..10)
+        {
+            auto x = stack.pop();
+            assert(x == 10-n);
+        }
+        assert(!stack.empty);
+        assert(stack.pop() == 99);
+        assert(stack.empty);
+        
+        foreach(x; 1..10)
+        {
+            stack.push(x);
+            auto y = stack.pop();
+            assert(stack.empty);
+            assert(x == y);
+        }
+    }
 }
 
 /** 
@@ -143,31 +171,104 @@ struct AliasMethodSelection(T) if(isNumeric!T)
     }
 }
 
-/// Stack unittest
-unittest
+struct Polynom
 {
-    Stack!int stack;
-    assert(stack.empty);
-    stack.push(99);
-    foreach(n; 1..10)
+    import std.conv : to;
+    import std.traits : isNumeric;
+
+    private const double[] _coef;
+
+    pure nothrow this(T)(in T[] coeficients...) @safe// if(isNumeric(T))
     {
-        stack.push(n);
+        _coef = to!(const(double[]))(coeficients);
     }
 
-    foreach(n; 1..10)
+    /// Evaluate polynomial function using Horner's method
+    pure nothrow double evaluate(in double x) const @safe
     {
-        auto x = stack.pop();
-        assert(x == 10-n);
-    }
-    assert(!stack.empty);
-    assert(stack.pop() == 99);
-    assert(stack.empty);
+        double bi = 0;
+        foreach(i; 0.._coef.length)
+        {
+            if(i == 0) bi = _coef[$-1];
+            else bi = _coef[$-1-i] + bi*x;
+        }
 
-    foreach(x; 1..10)
+        return bi;
+    }
+
+    pure nothrow Polynom derivative() const @safe
     {
-        stack.push(x);
-        auto y = stack.pop();
-        assert(stack.empty);
-        assert(x == y);
+        assert(_coef.length > 1);
+
+        double[] tmp;
+
+        foreach(i, c; _coef[1..$])
+        {
+            tmp ~= c*(i+1);
+        }
+
+        return Polynom(tmp);
+    }
+
+    /// Find root using Newton's method
+    //pure nothrow double findRoot(in double guess = 1.0, in double precision = 0.00001) const @safe
+    double findRoot(in double guess = 1.0, in double precision = 0.00001) const
+    {
+        import std.stdio;
+
+        assert(_coef.length>1);
+
+        import std.math : abs;
+
+        auto dp = this.derivative();
+
+        double root = guess;
+        double valP = evaluate(root);
+        double valDP;
+        while(abs(valP) > precision)
+        {
+            valDP = dp.evaluate(root);
+            root -= valP/valDP;
+            valP = this.evaluate(root);
+        }
+        return root;
+    }
+
+    string toString() const
+    {
+        import std.string : format;
+
+        string tmp;
+        foreach(i, c; _coef)
+        {
+            if(i == 0 && c != 0.0) tmp ~= format("%s + ", c);
+            if(i == 1 && c != 0.0) tmp ~= c!=1 ? format("%sx + ", c) : format("x + ");
+            if(i>1 && c!= 0.0) tmp ~= c!=1 ? format("%sx^%s + ", c, i) : format("x^%s + ", i);
+        }
+
+        if(tmp.length>0) return tmp[0..$-3];
+        else return "ZERO POLY";
+    }
+
+    unittest
+    {
+        import std.conv : to;
+        import std.math : approxEqual;
+
+        auto poly = Polynom(1, 0, 1, 2); //1 + x^2 + 2x^3
+        assert(to!string(poly) == "1 + x^2 + 2x^3");
+
+        auto dpoly = poly.derivative();
+        assert(dpoly == Polynom(0, 2, 6)); //2x + 6x^2
+
+        assert(dpoly.evaluate(1) == 2 + 6);
+        assert(dpoly.evaluate(2) == 4 + 6*4);
+
+        assert(approxEqual(poly.findRoot(), -1));
+
+        auto longPoly = Polynom(3, 3, 3, 3, 3, 3, 3, 3, 3, 3, -8); //-8x^10+3x^9+3x^8+3x^7+3x^6+3x^5+3x^4+3x^3+3x^2+3x+3
+        assert(approxEqual(longPoly.findRoot(2), 1.357));
     }
 }
+
+
