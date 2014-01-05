@@ -242,12 +242,50 @@ class WeightedRouletteSelection(T:IChromosome) : SelectionBase!T
  * 
  * Note:
  * Alias method is used to select parents.
+ * 
+ * See_Also:
+ * http://www.geatbx.com/docu/algindex-02.html
  */
-class RankSelection(T:IChromosome) : SelectionBase!T
+class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
 {
     import geneticd.utils : AliasMethodSelection;
+    import std.algorithm : map;
+    import std.array : array;
     
     private AliasMethodSelection!double _alias;
+    private double _sp;
+
+    /**
+     * Calculation function for linear ranking
+     * 
+     * Params:
+     *      pos = zero based index of item to rank. Note that 0 means the least fitted, length-1 means the fittest.
+     *      length = number of individuals to rank
+     *      selectivePressure = controls flattnes of rank function. 
+     *                          It has to be in [1.0..2.0] range. 1 means flat (all individuals rank=1), 
+     *                          2 means least flat (best has rank=2, worst has rank=0)
+     */
+    static double getLinearRank(in size_t pos, in size_t length, in double selectivePressure)
+    in
+    {
+        assert(pos<length);
+        assert(length > 1);
+        static if(linear) assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
+    }
+    out(result)
+    {
+        assert(result >= 0.0);
+    }
+    body
+    {
+        alias selectivePressure SP;
+        return 2-SP+2*(SP-1)*pos/(length-1);
+    }
+
+    this(in double selectivePressure)
+    {
+        _sp = selectivePressure;
+    }
 
     /**
      * Population chromosomes need to be sorted
@@ -263,13 +301,20 @@ class RankSelection(T:IChromosome) : SelectionBase!T
      */
     protected override void initInternal(StatusInfo status, Population!T population)
     {
-        alias population.chromosomes.length N;
+        immutable size_t N = population.chromosomes.length;
 
         //we need to create array of ranks for ordered chromosomes
-        size_t rank = N; //rank of best chromosome = number of chromosomes
-        _alias.init(
-            population.chromosomes.map!(ch=>rank--).array, //best chromosome has rank N, next N-1, etc.
-             (N*(N+1))/2); //sum of ranks
+        static if(linear)
+        {
+            size_t pos = N-1; //we start with N-1 because first chromosome is fittest and linear rank for 0 is the lowest
+            _alias.init(
+                population.chromosomes.map!(ch=>getLinearRank(pos--, N, _sp)).array, 
+                );
+        }
+        else
+        {
+            assert(false, "Not implemented");
+        }
     }
     
     /**
@@ -287,6 +332,17 @@ class RankSelection(T:IChromosome) : SelectionBase!T
         tmp ~= population[_alias.next()];
         
         return tmp;
+    }
+
+    unittest
+    {
+        double[11] test;
+        foreach(i; 0..11)
+        {
+            test[i] = getLinearRank(i, 11, 2.0);
+        }
+
+        assert(test == [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]);
     }
 }
 
@@ -545,9 +601,15 @@ auto weightedRouletteSelection(T:IChromosome)()
 /**
  * Helper function to create instance of RankSelection operator
  */
-auto rankSelection(T:IChromosome)()
+auto rankSelection(T:IChromosome, bool linear = true)(in double selectivePressure)
+in
 {
-    return new RankSelection!T();
+    static if(linear) assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
+    else assert(false, "Not implemented");
+}
+body
+{
+    return new RankSelection!(T, linear)(selectivePressure);
 }
 
 /**
