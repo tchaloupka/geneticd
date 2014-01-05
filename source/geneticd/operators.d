@@ -233,12 +233,12 @@ class WeightedRouletteSelection(T:IChromosome) : SelectionBase!T
 /**
  * Modification of WeightedRouletteSelection.
  * 
- * Parents are selected randomly according to their rank, which is determined from their fitness probability.
+ * Parents are selected randomly according to their rank, which is equal to their position in sorted list of chromosomes by their fitness.
  * Chromosomes with greater fitness have greater probability to be choosen as parents.
  * 
  * Note:
- * All chromosomes have chance to be selected. But this can slower the convergence, because best chromosomes do not differ
- * so much from the others.
+ * Linear ranking is used so all chromosomes have chance to be selected. But this can slower the convergence, 
+ * because best chromosomes do not differ so much from the others.
  * 
  * Note:
  * Alias method is used to select parents.
@@ -290,7 +290,83 @@ class RankSelection(T:IChromosome) : SelectionBase!T
     }
 }
 
-//TODO: TournamentSelection
+/**
+ * Tournament selection involves running several "tournaments" among a few individuals chosen at random from the population.
+ * The winner of each tournament (the one with the best fitness) is selected for crossover.
+ * Selection pressure is easily adjusted by changing the tournament size. If the tournament size is larger, 
+ * weak individuals have a smaller chance to be selected.
+ */
+class TournamentSelection(T) : SelectionBase!T
+{
+    import std.random : uniform;
+    import std.algorithm : sort;
+
+    private T[] _tournament;
+    private double _prob;
+
+    this(in size_t tournamentSize, in double probability)
+    in
+    {
+        assert(probability > 0.0 && probability <= 1.0);
+        assert(tournamentSize > 0);
+    }
+    body
+    {
+        _tournament.length = tournamentSize;
+        _prob = probability;
+    }
+
+    /**
+     * Select some chromosomes from population
+     */
+    protected override T[] selectInternal(Population!T population)
+        out(result)
+    {
+        assert(result.length == 2);
+    }
+    body
+    {
+        T[] tmp;
+        tmp ~= getOne(population);
+        tmp ~= getOne(population);
+        
+        return tmp;
+    }
+
+    private T getOne(Population!T population)
+    {
+        //choose random individuals to tournament
+        foreach(i; 0.._tournament.length)
+        {
+            _tournament[i] = population.chromosomes[uniform(0, population.chromosomes.length)];
+        }
+
+        if(_tournament.length == 1) return _tournament[0]; //its just random select
+
+        //sort tournament
+        sort!"a.fitness > b.fitness"(_tournament);
+
+        auto prob = uniform(0.0, 1.0);
+        auto probAcc = _prob;
+
+        // select by prob
+        size_t idx;
+        do
+        {
+            if(prob <= probAcc) break;
+            else
+            {
+                probAcc += probAcc * (1 - _prob);
+                idx++;
+            }
+        } while(idx < _tournament.length - 1);
+
+        return _tournament[idx];
+    }
+}
+
+//TODO: NonLinearRankSelection
+//TODO: Stochastic universal sampling
 
 /**
  * Simple crossover operator which randomly select index of gene and swap genes of parents after that index
@@ -411,6 +487,18 @@ auto weightedRouletteSelection(T:IChromosome)()
 auto rankSelection(T:IChromosome)()
 {
     return new RankSelection!T();
+}
+
+/**
+ * Helper function to create instance of TournamentSelection operator
+ * 
+ * Params:
+ *      tournamentSize = size of tournament to select from
+ *      probability = probability to select best chromosome of tournament
+ */
+auto tournamentSelection(T:IChromosome)(in size_t tournamentSize, in double probability)
+{
+    return new TournamentSelection!T(tournamentSize, probability);
 }
 
 /**
