@@ -1,7 +1,8 @@
 module geneticd.utils;
 
-import std.traits : isNumeric;
+import std.traits : isNumeric, isFloatingPoint;
 import std.random : uniform;
+import std.complex;
 
 /**
  * Simple implementation of stack using dynamic array.
@@ -171,67 +172,136 @@ struct AliasMethodSelection(T) if(isNumeric!T)
     }
 }
 
-struct Polynom
+/**
+ * Struct representing polynomial with some usable methods
+ */
+struct Polynomial
 {
     import std.conv : to;
-    import std.traits : isNumeric;
+    private double[] _coef;
 
-    private const double[] _coef;
-
-    pure nothrow this(T)(in T[] coeficients...) @safe// if(isNumeric(T))
+    /**
+     * Constructor
+     * 
+     * Params:
+     *      coefficients = polynomial coefficients, highest order coefficient has to be first
+     */
+    pure nothrow this(T)(in T[] coefficients...) @safe
+    in
     {
-        _coef = to!(const(double[]))(coeficients);
+        assert(coefficients.length > 0);
+        assert(coefficients[0] != 0);
+    }
+    body
+    {
+        _coef = to!(double[])(coefficients);
     }
 
     /// Evaluate polynomial function using Horner's method
-    pure nothrow double evaluate(in double x) const @safe
+    pure nothrow auto evaluate(U)(in U x) const @safe
+        if(isNumeric!U || is(U == Complex!double))
     {
-        double bi = 0;
-        foreach(i; 0.._coef.length)
+        static if(isNumeric!U)
         {
-            if(i == 0) bi = _coef[$-1];
-            else bi = _coef[$-1-i] + bi*x;
+            double bi = _coef[0];
+        }
+        else 
+        {
+            Complex!double bi = _coef[0];
         }
 
+        foreach(c; _coef[1..$])
+        {
+            bi = bi*x + c;
+        }
+        
         return bi;
     }
 
-    pure nothrow Polynom derivative() const @safe
+    /// Return derivative polynomial from current
+    pure nothrow Polynomial derivative() const @safe
     {
         assert(_coef.length > 1);
 
         double[] tmp;
 
-        foreach(i, c; _coef[1..$])
+        size_t pow = _coef.length - 1;
+        foreach(c; _coef[0..$-1])
         {
-            tmp ~= c*(i+1);
+            tmp ~= c*(pow--);
         }
 
-        return Polynom(tmp);
+        return Polynomial(tmp);
     }
 
-    /// Find root using Newton's method
-    //pure nothrow double findRoot(in double guess = 1.0, in double precision = 0.00001) const @safe
-    double findRoot(in double guess = 1.0, in double precision = 0.00001) const
+    /// Degree of polynomial
+    @property pure nothrow size_t degree() const @safe
     {
-        import std.stdio;
+        return _coef.length-1;
+    }
 
-        assert(_coef.length>1);
+    /// Is polynomial monic?
+    @property pure nothrow bool isMonic() const @safe
+    {
+        return _coef[0] == 1.0;
+    }
+
+    /// Creates monic polynomial from current
+    pure nothrow Polynomial toMonic() const @safe
+    {
+        if(isMonic) return Polynomial(_coef);
+
+        double[] tmp;
+        tmp ~= 1.0;
+        foreach(c; _coef[1..$])
+        {
+            tmp ~= c/_coef[0];
+        }
+
+        return Polynomial(tmp);
+    }
+
+    /**
+     * Find all roots using Durand-Kerner-Weierstrass method 
+     */
+    pure Complex!double[] findRoots(in uint maxIterations = 999, in double epsilon = 1e-15)
+    {
+        // Check if is monic polynomial
+        if(!isMonic)
+        {
+            return toMonic().findRoots(maxIterations, epsilon);
+        }
 
         import std.math : abs;
 
-        auto dp = this.derivative();
+        //roots array
+        Complex!double[] r = new Complex!double[degree];
 
-        double root = guess;
-        double valP = evaluate(root);
-        double valDP;
-        while(abs(valP) > precision)
+        auto num = complex(0.4, 0.9);
+        r[0] = complex(1.0);
+        foreach(i; 1..degree) r[i] = r[i-1] * num;
+
+        // Iterate
+        int count = 0;
+        bool changed;
+        do
         {
-            valDP = dp.evaluate(root);
-            root -= valP/valDP;
-            valP = this.evaluate(root);
-        }
-        return root;
+            changed = false;
+            foreach(i; 0..r.length)
+            {
+                auto tmp = complex(1.0);
+                foreach(j; 0..r.length) if (i != j) tmp *= r[i] - r[j];
+
+                tmp = r[i] - evaluate(r[i])/tmp;
+
+                //check if new root is unchanged
+                if(abs(r[i].re - tmp.re) > epsilon) changed = true;
+                else if(abs(r[i].im - tmp.im) > epsilon) changed = true;
+                r[i] = tmp;
+            }
+        } while(count++ < maxIterations && changed);
+
+        return r;
     }
 
     string toString() const
@@ -239,35 +309,57 @@ struct Polynom
         import std.string : format;
 
         string tmp;
-        foreach(i, c; _coef)
+        size_t pow = _coef.length - 1;
+        foreach(c; _coef)
         {
-            if(i == 0 && c != 0.0) tmp ~= format("%s + ", c);
-            if(i == 1 && c != 0.0) tmp ~= c!=1 ? format("%sx + ", c) : format("x + ");
-            if(i>1 && c!= 0.0) tmp ~= c!=1 ? format("%sx^%s + ", c, i) : format("x^%s + ", i);
+            if(pow == 0 && c != 0.0) tmp ~= format("%s + ", c);
+            if(pow == 1 && c != 0.0) tmp ~= c!=1 ? format("%sx + ", c) : format("x + ");
+            if(pow > 1 && c!= 0.0) tmp ~= c!=1 ? format("%sx^%s + ", c, pow) : format("x^%s + ", pow);
+            pow--;
         }
 
         if(tmp.length>0) return tmp[0..$-3];
         else return "ZERO POLY";
     }
 
+    pure nothrow double opCall(double x) const
+    {
+        return evaluate(x);
+    }
+
     unittest
     {
         import std.conv : to;
         import std.math : approxEqual;
+        import std.algorithm : filter;
+        import std.array;
 
-        auto poly = Polynom(1, 0, 1, 2); //1 + x^2 + 2x^3
-        assert(to!string(poly) == "1 + x^2 + 2x^3");
+        auto poly = Polynomial(2, 1, 0, 1); //2x^3 + x^2 + 1
+        assert(to!string(poly) == "2x^3 + x^2 + 1");
 
         auto dpoly = poly.derivative();
-        assert(dpoly == Polynom(0, 2, 6)); //2x + 6x^2
+        assert(dpoly == Polynomial(6, 2, 0)); //6x^2 + 2x
+
+        assert(dpoly.toMonic() == Polynomial(1.0, 2.0/6, 0.0));
 
         assert(dpoly.evaluate(1) == 2 + 6);
         assert(dpoly.evaluate(2) == 4 + 6*4);
+        assert(dpoly(3) == 6 + 6*9);
 
-        assert(approxEqual(poly.findRoot(), -1));
+        assert(poly == Polynomial(2.0, 1.0, 0.0, 1.0));
 
-        auto longPoly = Polynom(3, 3, 3, 3, 3, 3, 3, 3, 3, 3, -8); //-8x^10+3x^9+3x^8+3x^7+3x^6+3x^5+3x^4+3x^3+3x^2+3x+3
-        assert(approxEqual(longPoly.findRoot(2), 1.357));
+        auto roots = dpoly.findRoots();
+        assert(approxEqual(roots[0].re, 0));
+        assert(approxEqual(roots[0].im, 0));
+        assert(approxEqual(roots[1].re, -1.0/3));
+        assert(approxEqual(roots[1].im, 0));
+
+        poly = Polynomial(-8, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3); //-8x^10+3x^9+3x^8+3x^7+3x^6+3x^5+3x^4+3x^3+3x^2+3x+3
+        roots = poly.findRoots();
+        assert(roots.length == 10);
+        auto realRoots = roots.filter!(a=>approxEqual(a.im,0)).array;
+        assert(realRoots.length == 2);
+        assert(approxEqual(realRoots.filter!(a=>a.re > 0).front.re, 1.357));
     }
 }
 

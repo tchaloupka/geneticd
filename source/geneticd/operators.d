@@ -259,114 +259,6 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
     private AliasMethodSelection!double _alias;
     private double _sp;
 
-    static if(!linear)
-    {
-        import geneticd.utils : Polynom;
-        private double _lastRoot;
-        private size_t _lastSize;
-        private double _lastSumRootPower;
-    }
-
-    /**
-     * Calculation function for linear ranking
-     * 
-     * Params:
-     *      pos = zero based index of item to rank. Note that 0 means the least fitted, length-1 means the fittest.
-     *      length = number of individuals to rank
-     *      selectivePressure = controls flattnes of rank function. 
-     *                          It has to be in [1.0..2.0] range. 1 means flat (all individuals rank=1), 
-     *                          2 means least flat (best has rank=2, worst has rank=0)
-     */
-    private static double getLinearRank(in size_t pos, in size_t length, in double selectivePressure)
-    in
-    {
-        assert(pos<length);
-        assert(length > 1);
-        assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
-    }
-    out(result)
-    {
-        assert(result >= 0.0);
-    }
-    body
-    {
-        alias selectivePressure SP;
-        return 2-SP+2*(SP-1)*pos/(length-1);
-    }
-
-    /**
-     * Calculates the root for function: 0 = (SP-N).X^(N-1) + SP.X^(N-2) + ... + SP.X + SP
-     * 
-     * Params:
-     *      length = number of individuals
-     *      selectivePressure = must be in [1..N-2]
-     *      sumRootPower = output of sumarized powers of root^(i) where i=[0..N-1]
-     */
-    private static double getNonLinearRoot(in size_t length, in double selectivePressure, out double sumRootPower)
-    in
-    {
-        assert(length > 2);
-        assert(selectivePressure >= 1.0 && selectivePressure <= length - 2);
-    }
-    out(result)
-    {
-        assert(result > 0.0);
-        assert(sumRootPower > 0.0);
-    }
-    body
-    {
-        import std.math : pow;
-
-        alias selectivePressure SP;
-
-        double[] coeficients;
-        coeficients.length = length;
-        foreach(ref c; coeficients) c = SP;
-        coeficients[$-1] = SP - length;
-
-        auto poly = Polynom(coeficients);
-
-//            if(SP == 3.0) root = 1.3573328;
-//            else assert(false, "Not implemented");
-
-        double root = poly.findRoot(2); //TODO: it is not guaranteed yet that it finds root > 0
-
-        sumRootPower = 0;
-        foreach(i; 0..length)
-        {
-            sumRootPower += pow(root, i);
-        }
-
-        return root;
-    }
-
-    /**
-     * Calculation function for non linear ranking
-     * 
-     * Params:
-     *      pos = zero based index of item to rank. Note that 0 means the least fitted, length-1 means the fittest.
-     *      length = number of individuals to rank
-     *      root = poly function root which is calculated with getNonLinearRoot function
-     *      sumRootPower = precomputed sum of root powers in 0..N-1 interval
-     */
-    private static double getNonLinearRank(in size_t pos, in size_t length, in double root, in double sumRootPower)
-    in
-    {
-        import std.math : isNaN;
-        assert(!isNaN(root));
-        assert(!isNaN(sumRootPower));
-        assert(root > 0.0 && sumRootPower > 0.0);
-    }
-    out(result)
-    {
-        assert(result > 0.0);
-    }
-    body
-    {
-        import std.math : pow;
-        return length * pow(root, pos) / sumRootPower;
-    }
-
     this(in double selectivePressure)
     in
     {
@@ -375,6 +267,115 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
     body
     {
         _sp = selectivePressure;
+    }
+
+    static if(!linear)
+    {
+        import geneticd.utils : Polynomial;
+        private double _lastRoot;
+        private size_t _lastSize;
+        private double _lastSumRootPower;
+
+        /**
+         * Calculates the root for function: 0 = (SP-N).X^(N-1) + SP.X^(N-2) + ... + SP.X + SP
+         * 
+         * Params:
+         *      length = number of individuals
+         *      selectivePressure = must be in [1..N-2]
+         *      sumRootPower = output of sumarized powers of root^(i) where i=[0..N-1]
+         */
+        private static double getNonLinearRoot(in size_t length, in double selectivePressure, out double sumRootPower)
+        in
+        {
+            assert(length > 2);
+            assert(selectivePressure >= 1.0 && selectivePressure <= length - 2);
+        }
+        out(result)
+        {
+            assert(result > 0.0);
+            assert(sumRootPower > 0.0);
+        }
+        body
+        {
+            import std.math : pow, approxEqual;
+            import std.algorithm : filter;
+
+            alias selectivePressure SP;
+
+            double[] coeficients;
+            coeficients.length = length;
+            foreach(ref c; coeficients) c = SP;
+            coeficients[0] = SP - length;
+
+            auto poly = Polynomial(coeficients);
+            auto roots = poly.findRoots().filter!(a=>approxEqual(a.im, 0) && a.re > 0); //we want real root > 0
+            if(roots.empty) assert(false, "No real root found!");
+            double root = roots.front.re;
+
+            sumRootPower = 0;
+            foreach(i; 0..length)
+            {
+                sumRootPower += pow(root, i);
+            }
+
+            return root;
+        }
+
+        /**
+         * Calculation function for non linear ranking
+         * 
+         * Params:
+         *      pos = zero based index of item to rank. Note that 0 means the least fitted, length-1 means the fittest.
+         *      length = number of individuals to rank
+         *      root = poly function root which is calculated with getNonLinearRoot function
+         *      sumRootPower = precomputed sum of root powers in 0..N-1 interval
+         */
+        private static double getNonLinearRank(in size_t pos, in size_t length, in double root, in double sumRootPower)
+        in
+        {
+            import std.math : isNaN;
+            assert(!isNaN(root));
+            assert(!isNaN(sumRootPower));
+            assert(root > 0.0 && sumRootPower > 0.0);
+        }
+        out(result)
+        {
+            assert(result > 0.0);
+        }
+        body
+        {
+            import std.math : pow;
+            return length * pow(root, pos) / sumRootPower;
+        }
+    }
+    else
+    {
+        /**
+         * Calculation function for linear ranking
+         * 
+         * Params:
+         *      pos = zero based index of item to rank. Note that 0 means the least fitted, length-1 means the fittest.
+         *      length = number of individuals to rank
+         *      selectivePressure = controls flattnes of rank function. 
+         *                          It has to be in [1.0..2.0] range. 1 means flat (all individuals rank=1), 
+         *                          2 means least flat (best has rank=2, worst has rank=0)
+         */
+        private static double getLinearRank(in size_t pos, in size_t length, in double selectivePressure)
+            in
+        {
+            assert(pos<length);
+            assert(length > 1);
+            assert(selectivePressure >= 1.0 && selectivePressure <= 2.0);
+        }
+        out(result)
+        {
+            assert(result >= 0.0);
+        }
+        body
+        {
+            alias selectivePressure SP;
+            return 2-SP+2*(SP-1)*pos/(length-1);
+        }
     }
 
     /**
@@ -441,34 +442,35 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
     unittest
     {
         import std.math : approxEqual;
+        import geneticd.gene;
+
+        alias RankSelection!(Chromosome!BoolGene, true) linearRank;
+        alias RankSelection!(Chromosome!BoolGene, false) nonLinearRank;
 
         double[11] test;
         foreach(i; 0..11)
         {
-            test[i] = getLinearRank(i, 11, 2.0);
+            test[i] = linearRank.getLinearRank(i, 11, 2.0);
         }
 
         assert(test == [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]);
 
         double sum;
-        auto root = getNonLinearRoot(11, 3.0, sum);
+        auto root = nonLinearRank.getNonLinearRoot(11, 3.0, sum);
         assert(approxEqual(root, 1.357333));
         foreach(i; 0..11)
         {
-            test[i] = getNonLinearRank(i, 11, root, sum);
+            test[i] = nonLinearRank.getNonLinearRank(i, 11, root, sum);
         }
 
         assert(approxEqual(test[],[0.14, 0.19, 0.26, 0.35, 0.48, 0.65, 0.88, 1.20, 1.63, 2.21, 3.00]));
 
-        root = getNonLinearRoot(11, 2.0, sum);
+        root = nonLinearRank.getNonLinearRoot(11, 2.0, sum);
         assert(approxEqual(root, 1.1796301));
         foreach(i; 0..11)
         {
-            test[i] = getNonLinearRank(i, 11, root, sum);
+            test[i] = nonLinearRank.getNonLinearRank(i, 11, root, sum);
         }
-
-        import std.stdio;
-        writeln(test);
 
         assert(approxEqual(test[],[0.38, 0.45, 0.53, 0.63, 0.74, 0.88, 1.03, 1.22, 1.44, 1.70, 2.00]));
     }
