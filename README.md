@@ -24,7 +24,7 @@ Common selection and crossover operators are implemented.
 
 Note
 ----
-I'm not an genetic or evolution algorithms expert nor experienced D programmer (still learning). So any advice is welcome :)
+I'm not a genetic or evolution algorithms expert nor experienced D programmer (still learning). So any advice is welcome :)
 
 Sample
 ------
