@@ -1,16 +1,16 @@
 module geneticd.gene;
 
 import std.conv : to;
-import std.traits : isScalarType;
+import std.traits : isScalarType, isBoolean;
 
 import geneticd.chromosome;
 
-interface ICloneable
+interface ICloneable(T)
 {
     /**
      * Create new object using current instance as a template.
      */
-    pure nothrow ICloneable clone()
+    T clone()
     out(result)
     {
         assert(result !is null);
@@ -20,7 +20,7 @@ interface ICloneable
 /**
  * Gene basic interface 
  */
-interface IGene(T) : ICloneable
+interface IGene(T) : ICloneable!(IGene!T)
 {
     /**
      * Gets the value of the gene
@@ -52,7 +52,7 @@ interface IGene(T) : ICloneable
     /**
      * Apply mutation operation to gene
      */
-    pure nothrow void mutate();
+    void mutate();
 
     /**
      * Equality operator
@@ -119,7 +119,7 @@ else
     /**
      * Apply mutation operation to gene
      */
-    pure nothrow abstract void mutate();
+    abstract void mutate();
 
     /**
      * Equality operator
@@ -157,43 +157,100 @@ else
      * Create new gene using current instance as a template
      * It should use the same ranges, constraints, etc.
      */
-    pure nothrow BasicGene!T clone()
+    final typeof(this) clone() const
     out(result)
     {
         assert(result !is null);
     }
     body
     {
+        import std.traits : Unqual;
         auto gene = cloneInternal();
         //copy rest of the non value properties
 
-        return gene;
+        return cast(Unqual!(typeof(this)))gene;
     }
     
-    pure nothrow protected abstract BasicGene!T cloneInternal();
+    protected abstract Object cloneInternal() const;
 
     override string toString() const
     {
         return to!string(_value);
     }
+
+    /// Boundaries for scalar values
+    static if(isScalarType!T)
+    {
+        protected T _min;
+        protected T _max;
+
+        /// Minimal gene boundary
+        @property pure nothrow @safe T min() const
+        {
+            return _min;
+        }
+
+        /// Maximal gene boundary
+        @property pure nothrow @safe T max() const
+        {
+            return _max;
+        }
+
+        /// Set minimal gene boundary
+        @property pure nothrow @safe void min(T val)
+        {
+            _min = val;
+        }
+
+        /// Set minimal gene boundary
+        @property pure nothrow @safe void max(T val)
+        {
+            _max = val;
+        }
+
+        /// Scalar construcor
+        pure nothrow @safe this(in T value)
+        {
+            this(value, T.min, T.max);
+        }
+
+        /// Scalar constructor with boundaries
+        pure nothrow @safe this(in T value, in T min, in T max)
+        {
+            _value = value;
+            _min = min;
+            _max = max;
+        }
+    }
 }
 
-/**
- * Simple gene whith two possible values: true and false
- */
-class BoolGene : BasicGene!bool
+/// Gene represented as a scalar value
+class ScalarGene(T) : BasicGene!T if(isScalarType!T)
 {
     pure nothrow this()
-    { }
-
-    pure nothrow this(bool value)
     {
-        this.value = value;
+        super(T.init);
     }
 
-    pure nothrow protected override BoolGene cloneInternal()
+    pure nothrow this(T value)
     {
-        return new BoolGene(_value);
+        super(value);
+    }
+
+    pure nothrow this(T value, T min, T max)
+    {
+        super(value, min, max);
+    }
+
+    protected final override Object cloneInternal() const
+    {
+        import std.traits : Unqual;
+        auto newObj = cast(Unqual!(typeof(this)))this.classinfo.create();
+        newObj._value = _value;
+        newObj._min = _min;
+        newObj._max = _max;
+
+        return newObj;
     }
 
     /**
@@ -202,51 +259,72 @@ class BoolGene : BasicGene!bool
      */
     override void setRandomValue()
     {
-        import std.random : dice;
-        _value = dice(0.5,0.5) == 1;
+        static if(isBoolean!T)
+        {
+            import std.random : dice;
+            _value = dice(0.5,0.5) == 1;
+        }
+        else
+        {
+            import std.random : uniform;
+            _value = uniform!"[]"(_min, _max);
+        }
     }
-
+    
     /**
      * Apply mutation operation to gene.
      * For BoolGene the flip bit mutation is used.
      */
-    pure nothrow override void mutate()
+    override void mutate()
     {
-        _value = !_value;
-    }
-
-    /// BoolGene tests
-    unittest
-    {
-        import core.exception;
-        import std.exception;
-
-        IGene!bool gene = new BoolGene();
-        gene = cast(BoolGene)gene.clone();
-        gene.value = true;
-
-        gene.mutate();
-        assert(gene.value == false);
-        gene.mutate();
-        assert(gene.value == true);
-
-        assert((gene is null) == false);
-
-        auto gene2 = new BoolGene(true);
-        assert(gene == gene2);
-        assert(gene.toHash == gene2.toHash);
-
-        assert(gene2 == true);
-
-        gene2.value = false;
-        assert(gene != gene2);
-        assert(gene.toHash != gene2.toHash);
-
-        assert(gene2 == false);
+        static if(isBoolean!T)
+        {
+            //For BoolGene the flip bit mutation is used.
+            _value = !_value;
+        }
+        else
+            setRandomValue();
     }
 }
 
-//TODO: Add scalar type Gene with min max params
-//TODO: Add bitarray Gene for bitwise representation instead of BoolGene
+/// BoolGene tests
+unittest
+{
+    import core.exception;
+    import std.exception;
+    
+    auto gene = new ScalarGene!bool();
+    gene = cast(ScalarGene!bool)gene.clone();
+    gene.value = true;
+    
+    gene.mutate();
+    assert(gene.value == false);
+    gene.mutate();
+    assert(gene.value == true);
+    
+    assert((gene is null) == false);
+    
+    auto gene2 = new ScalarGene!bool(true);
+    assert(gene == gene2);
+    assert(gene.toHash == gene2.toHash);
+    
+    assert(gene2 == true);
+    
+    gene2.value = false;
+    assert(gene != gene2);
+    assert(gene.toHash != gene2.toHash);
+    
+    assert(gene2 == false);
+}
+
+/// CharGene tests
+unittest
+{
+    auto gene = new ScalarGene!char('a');
+    assert(gene == new ScalarGene!char('a'));
+    assert(gene != new ScalarGene!char('b'));
+}
+
+//TODO: Add bitarray Gene for bitwise representation instead of BoolGene?
 //TODO: Add string Gene
 //TODO: Add composite Gene

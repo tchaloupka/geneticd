@@ -237,14 +237,13 @@ unittest
 /// noImprovementTerminate test
 unittest
 {
-    StatusInfo status = StatusInfo(1, 0, 50.0, 0.0);
+    StatusInfo status = StatusInfo(1, 0, 50.0, 50.0, 0.0, 0.0);
     ITerminateFunction func = noImprovementTerminate!(10);
-
-    import std.stdio;
 
     while(!func.terminate(status))
     {
         status.averageFitness += 1;
+        status.averageRealFitness += 1;
         status.generations++;
         assert(status.generations < 20); //to stop the loop if terminate does not work
     }
@@ -256,6 +255,7 @@ unittest
     while(!func.terminate(status))
     {
         status.bestFitness += 1;
+        status.bestRealFitness += 1;
         status.generations++;
         assert(status.generations < 20); //to stop the loop if terminate does not work
     }

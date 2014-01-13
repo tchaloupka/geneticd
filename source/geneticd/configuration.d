@@ -11,16 +11,16 @@ import geneticd.operators;
  */
 class Configuration(T:IChromosome)
 {
-    struct Callbacks
+    struct Callbacks(U:IChromosome)
     {
         import std.traits : isDelegate;
         import std.string : format;
 
         /// Called when initial population is initialized
-        void delegate(StatusInfo) onInitialPopulation;
+        void delegate(const GA!U, const ref StatusInfo) onInitialPopulation;
 
         /// Called when fitness is determined for all chromosomes in current population
-        void delegate(StatusInfo) onFitness;
+        void delegate(const GA!U, const ref StatusInfo) onFitness;
 
         /// Called when elite chromosomes are selected
         void delegate(T[] elite) onElite;
@@ -55,20 +55,22 @@ class Configuration(T:IChromosome)
     private uint _populationSize = 100;
     private T _sampleChromosome;
     private IFitnessFunction!T _fitnessFunc;
+    private IAlterFitnessFunction!T _alterFitnessFunc;
     private ITerminateFunction _terminateFunc;
     private ISelectionOperator!T _eliteSelectionOperator;
     private ISelectionOperator!T _parentSelectionOperator;
     private ICrossoverOperator!T _crossoverOperator;
+    private IMutationOperator!T _mutationOperator;
     private double _crossoverProbability = 0.8;
     private double _mutationProbability = 0.01;
 
     /// Simple struct to hold callback delegates
-    Callbacks callbacks;
+    Callbacks!T callbacks;
 
     /// Default constructor
     this()
     {
-
+        this(null);
     }
 
     /**
@@ -80,9 +82,7 @@ class Configuration(T:IChromosome)
      */
     this(T sampleChromosome, uint populationSize = 100)
     {
-        this._sampleChromosome = sampleChromosome;
-        this._populationSize = populationSize;
-        this._terminateFunc = maxGenerationsTerminate!100;
+        this(sampleChromosome, null, populationSize);
     }
 
     /**
@@ -95,10 +95,7 @@ class Configuration(T:IChromosome)
      */
     this(T sampleChromosome, IFitnessFunction!T fitnessFunc, uint populationSize = 100)
     {
-        this._sampleChromosome = sampleChromosome;
-        this._fitnessFunc = fitnessFunc;
-        this._populationSize = populationSize;
-        this._terminateFunc = maxGenerationsTerminate!100;
+        this(sampleChromosome, null, null, populationSize);
     }
 
     /**
@@ -115,6 +112,7 @@ class Configuration(T:IChromosome)
         this._fitnessFunc = fitnessFunc;
         this._populationSize = populationSize;
         this._terminateFunc = terminateFunc;
+        this._mutationOperator = uniformMutation!T();
     }
 
     /**
@@ -163,6 +161,22 @@ class Configuration(T:IChromosome)
     @property pure nothrow void fitnessFunction(IFitnessFunction!T func)
     {
         _fitnessFunc = func;
+    }
+
+    /**
+     * Function used to alter evaluated fitness of chromosome. It can be used to modyfy fitness by age of chromosome, or to change search direction, etc.
+     */
+    @property pure nothrow IAlterFitnessFunction!T alterFitnessFunction()
+    {
+        return _alterFitnessFunc;
+    }
+    
+    /**
+     * Function used to alter evaluated fitness of chromosome. It can be used to modyfy fitness by age of chromosome, or to change search direction, etc.
+     */
+    @property pure nothrow void alterFitnessFunction(IAlterFitnessFunction!T func)
+    {
+        _alterFitnessFunc = func;
     }
 
     /**
@@ -229,6 +243,22 @@ class Configuration(T:IChromosome)
     @property pure nothrow void crossoverOperator(ICrossoverOperator!T crossOp)
     {
         _crossoverOperator = crossOp;
+    }
+
+    /**
+     * Operator to mutate chromosomes.
+     */
+    @property pure nothrow IMutationOperator!T mutationOperator()
+    {
+        return _mutationOperator;
+    }
+    
+    /**
+     * Operator to mutate chromosomes.
+     */
+    @property pure nothrow void mutationOperator(IMutationOperator!T mutOp)
+    {
+        _mutationOperator = mutOp;
     }
 
     /**

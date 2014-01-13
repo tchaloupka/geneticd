@@ -7,7 +7,7 @@ import std.math : isNaN;
 import geneticd.gene;
 import geneticd.configuration;
 
-interface IChromosome : ICloneable
+interface IChromosome : ICloneable!IChromosome
 {
     /**
      * Age of the chromosome - number of generation since chromosome was born
@@ -30,6 +30,16 @@ interface IChromosome : ICloneable
      * Set the fitness of this chromosome.
      */
     @property pure nothrow void fitness(double fitness);
+
+    /**
+     * The real fitness of this chromosome. It means not altered via AlterFitness function.
+     */
+    @property pure nothrow double realFitness() const;
+    
+    /**
+     * Set the fitness of this chromosome. It means not altered via AlterFitness function.
+     */
+    @property pure nothrow void realFitness(double fitness);
 
     /**
      * Has chromosome already been evaluated?
@@ -55,9 +65,11 @@ class Chromosome(T:IGene!G, G) : IChromosome
     alias Configuration!(Chromosome!T) configType;
 
     protected double _fitness;
+    protected double _realFitness;
     protected uint _age;
     protected T[] _genes;
     protected configType _configuration;
+    protected bool _isPermutation;
 
     protected @property pure nothrow isSample() const
     {
@@ -71,16 +83,18 @@ class Chromosome(T:IGene!G, G) : IChromosome
      * Params:
      *      configuration = GA configuration
      */
-    this(configType configuration)
+    this(ref configType configuration)
     {
         assert(configuration !is null);
 
         auto sample = cast(Chromosome!T)configuration.sampleChromosome;
         if(!sample) assert(false);
-
         assert(sample._genes.length > 0);
 
-        this(configuration, sample._genes[0], sample._genes.length);
+        if(sample.isPermutation)
+            this(configuration, sample); 
+        else
+            this(configuration, sample._genes[0], sample._genes.length);
     }
 
     /**
@@ -95,6 +109,16 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
+     * Special constructor to make sample chromosome
+     */
+    this(T[] sampleGenes)
+    {
+        assert(sampleGenes.length > 0);
+        
+        this._genes = sampleGenes;
+    }
+
+    /**
      * Chromosome constructor.
      * Random chromosome is initialized.
      * 
@@ -103,20 +127,19 @@ class Chromosome(T:IGene!G, G) : IChromosome
      *      sampleGene = sample gene to help create chromosome
      *      size = desired number of stored genes in chromosome
      */
-    this(configType configuration, T sampleGene, size_t size)
+    this(ref configType configuration, T sampleGene, size_t size)
     in
     {
         assert(configuration !is null);
         assert(sampleGene !is null);
         assert(size > 0);
     }
+    out
+    {
+        assert(this._genes.length == size);
+    }
     body
     {
-        scope(exit)
-        {
-            assert(this._genes.length == size);
-        }
-    
         this._configuration = configuration;
         foreach(i; 0..size)
         {
@@ -126,13 +149,43 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
-     * Chromosome constructor which uses a configuration sampleChromosome to initialization
+     * Chromosome constructor.
+     * Random chromosome is initialized according to sample.
+     * 
+     * Params:
+     *      configuration = GA configuration
+     *      sampleChromosome = sample chromosome to help create new one
+     */
+    this(ref configType configuration, Chromosome!T sampleChromosome)
+    in
+    {
+        assert(configuration !is null);
+        assert(sampleChromosome !is null);
+        assert(sampleChromosome.isSample);
+    }
+    out
+    {
+        assert(this._genes.length == sampleChromosome.genes.length);
+    }
+    body
+    {
+        this._configuration = configuration;
+        this._isPermutation = sampleChromosome._isPermutation;
+        foreach(g; sampleChromosome.genes)
+        {
+            this._genes ~= cast(T)g.clone();
+        }
+        randomize();
+    }
+
+    /**
+     * Chromosome constructor to set exact genes of chromosome.
      * 
      * Params:
      *      configuration = GA configuration
      *      initialGenes = initial set of genes
      */
-    pure nothrow this(configType configuration, T[] initialGenes)
+    this(ref configType configuration, T[] initialGenes)
     {
         assert(configuration !is null);
         assert(initialGenes.length > 0);
@@ -143,10 +196,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
         }
         
         this._configuration = configuration;
-        foreach(gene; initialGenes)
-        {
-            _genes ~= cast(T)gene.clone();
-        }
+        this._genes = initialGenes;
     }
 
     /**
@@ -170,6 +220,26 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
+     * The real fitness of this chromosome. It means not altered via AlterFitness function.
+     */
+    @property pure nothrow double realFitness() const
+    {
+        assert(!isSample);
+        
+        return this._realFitness;
+    }
+    
+    /**
+     * Set the fitness of this chromosome. It means not altered via AlterFitness function.
+     */
+    @property pure nothrow void realFitness(double fitness)
+    {
+        assert(!isSample);
+        
+        this._realFitness = fitness;
+    }
+
+    /**
      * Age of the chromosome - number of generation since chromosome was born (0 means the chromosome was born in current generation)
      * Can be used for altering chromosome fitness by age (to prefer new ones over the old ones)
      */
@@ -189,6 +259,22 @@ class Chromosome(T:IGene!G, G) : IChromosome
         assert(!isSample);
 
         this._age = age;
+    }
+
+    /**
+     * True if chromosome consists of unique set of genes which can't be randomized
+     */
+    @property pure nothrow bool isPermutation() const
+    {
+        return _isPermutation;
+    }
+
+    /**
+     * True if chromosome consists of unique set of genes which can't be randomized
+     */
+    @property pure nothrow void isPermutation(bool value)
+    {
+        _isPermutation = value;
     }
 
     /**
@@ -227,9 +313,17 @@ class Chromosome(T:IGene!G, G) : IChromosome
     {
         assert(!isSample);
 
-        foreach(gene; _genes)
+        if(_isPermutation)
         {
-            gene.setRandomValue();
+            import std.random : randomShuffle;
+            randomShuffle(_genes);
+        }
+        else
+        {
+            foreach(gene; _genes)
+            {
+                gene.setRandomValue();
+            }
         }
 
         _fitness = double.init;
@@ -255,14 +349,15 @@ class Chromosome(T:IGene!G, G) : IChromosome
 
         uint numMutated = 0;
         
-        foreach(i, gene; _genes)
+        foreach(i; 0.._genes.length)
         {
             //mutate each gene of chromosome with a given probability
             if(uniform(0.0, 1.0) <= _configuration.mutationProbability) 
             {
                 _configuration.callbacks.invoke!"onBeforeGeneMutate"(this, i);
 
-                gene.mutate();
+                assert(_configuration.mutationOperator !is null);
+                _configuration.mutationOperator.mutate(this, i);
                 numMutated++;
 
                 _configuration.callbacks.invoke!"onAfterGeneMutate"(this, i);
@@ -292,6 +387,14 @@ class Chromosome(T:IGene!G, G) : IChromosome
         return _genes;
     }
 
+    /**
+     * Genes of chromosome
+     */
+    @property pure nothrow genes(T[] genes)
+    {
+        this._genes = genes;
+    }
+
     override string toString() const
     {
         import std.string : lastIndexOf;
@@ -317,17 +420,26 @@ class Chromosome(T:IGene!G, G) : IChromosome
     /**
      * Clone current instance of chromosome
      */
-    Chromosome!T clone()
+    typeof(this) clone()
     out(result)
     {
         assert(result !is null);
         assert(result !is this);
+        assert(result.isEvaluated == this.isEvaluated);
     }
     body
     {
-        auto tmp = new Chromosome!T(_configuration, this._genes);
+        T[] tmpGenes;
+        foreach(g; _genes)
+        {
+            tmpGenes ~= cast(T)g.clone();
+        }
+
+        auto tmp = new Chromosome!T(_configuration, tmpGenes);
         tmp._fitness = this._fitness;
+        tmp._realFitness = this._realFitness;
         tmp._age = this._age;
+        tmp._isPermutation = this._isPermutation;
         return tmp;
     }
 
@@ -335,9 +447,9 @@ class Chromosome(T:IGene!G, G) : IChromosome
     {
         import std.math : isNaN;
         
-        alias Chromosome!BoolGene chromoType;
+        alias Chromosome!(ScalarGene!bool) chromoType;
         
-        auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), 10));
+        auto conf = new Configuration!chromoType(new chromoType(new ScalarGene!bool(), 10));
         auto chromo = new chromoType(conf);
         
         assert(!chromo.isEvaluated);

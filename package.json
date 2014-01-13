@@ -5,7 +5,6 @@
 	"authors": ["Tomáš Chaloupka"],
 	"license": "MIT",
 	"targetType": "library",
-	"mainSourceFile": "source/geneticd/app.d",
 	"dependencies": {
 	}
 }

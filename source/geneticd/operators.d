@@ -53,6 +53,20 @@ interface ICrossoverOperator(T:IChromosome)
     }
 }
 
+/**
+ * Interface for mutation operators
+ */
+interface IMutationOperator(T:IChromosome)
+{
+    /// Execute mutate operator
+    void mutate(T chromosome, size_t idx)
+    in
+    {
+        assert(chromosome !is null);
+        assert(chromosome.genes.length > idx);
+    }
+}
+
 abstract class SelectionBase(T:IChromosome) : ISelectionOperator!T
 {
     /**
@@ -444,8 +458,8 @@ class RankSelection(T:IChromosome, bool linear = true) : SelectionBase!T
         import std.math : approxEqual;
         import geneticd.gene;
 
-        alias RankSelection!(Chromosome!BoolGene, true) linearRank;
-        alias RankSelection!(Chromosome!BoolGene, false) nonLinearRank;
+        alias RankSelection!(Chromosome!(ScalarGene!bool), true) linearRank;
+        alias RankSelection!(Chromosome!(ScalarGene!bool), false) nonLinearRank;
 
         double[11] test;
         foreach(i; 0..11)
@@ -613,8 +627,6 @@ class StochasticUniversalSamplingSelection(T:IChromosome) : SelectionBase!T
     }
 }
 
-//TODO: NonLinearRankSelection
-
 /**
  * Simple crossover operator which randomly select index of gene and swap genes of parents after that index
  */
@@ -629,6 +641,7 @@ class SinglePointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFuncti
     {
         assert(chromosomes.length == 2);
         assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
     }
     body
     {
@@ -653,10 +666,11 @@ class TwoPointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctions
     
     /// Execute crossover operator
     void cross(StatusInfo status, T[] chromosomes...)
-        in
+    in
     {
         assert(chromosomes.length == 2);
         assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
     }
     body
     {
@@ -669,6 +683,88 @@ class TwoPointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctions
         {
             ch.age = 0;
             ch.fitness = double.init;
+        }
+    }
+}
+
+/**
+ * Perform ordered crossover (also known as OX) on the specified tours.
+ * 
+ * Ordered crossover works in two stages. First, a random slice is swapped between the two tours, as in a two-point crossover.
+ * Second, repeated genes not in the swapped area are removed, and the remaining integers are added
+ * from the other tour, in the order that they appear starting from the end index of the swapped section.
+ * 
+ * Example:
+ *  Parent 1: 8 4 7 | 3 6 2 5 1 | 9 0
+ *  Parent 2: 0 1 2 | 3 4 5 6 7 | 8 9
+ *  Child  1: 8 2 1   3 4 5 6 7   9 0
+ *  Child  2: 0 4 7   3 6 2 5 1   8 9
+ */
+class OrderedCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.random : uniform;
+    import std.algorithm : filter, canFind, swap;
+    import std.array : array, insertInPlace;
+    
+    /// Execute crossover operator
+    void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        assert(chromosomes.length == 2);
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+    }
+    body
+    {
+        size_t size = chromosomes[0].genes.length;
+        auto start = uniform(0, size);
+        auto end = uniform(0, size);
+        if(start > end) swap(start, end);
+
+        //TODO: these somehow dont work..
+//        auto ch0 = chromosomes[0].genes.filter!((g) => !chromosomes[1].genes[start..end+1].canFind(g)).array;
+//        auto ch1 = chromosomes[1].genes.filter!((g) => !chromosomes[0].genes[start..end+1].canFind(g)).array;
+
+//        //insert sublist
+//        ch0.insertInPlace(start, chromosomes[1].genes[start..end+1]);
+//        ch1.insertInPlace(start, chromosomes[0].genes[start..end+1]);
+
+        typeof(chromosomes[0].genes) ch0;
+        typeof(chromosomes[0].genes) ch1;
+
+        if(start == 0)
+        {
+            ch0 ~= chromosomes[1].genes[start..end+1];
+            ch1 ~= chromosomes[0].genes[start..end+1];
+        }
+
+        //add genes which are not in other parent sublist
+        foreach(i; 0..size)
+        {
+            bool found0 = false;
+            bool found1 = false;
+            foreach(j; start..end+1)
+            {
+                if(chromosomes[1].genes[j] == chromosomes[0].genes[i]) found0 = true;
+                if(chromosomes[0].genes[j] == chromosomes[1].genes[i]) found1 = true;
+                if(found0 && found1) break;
+            }
+
+            if(!found0) ch0~= chromosomes[0].genes[i];
+            if(!found1) ch1~= chromosomes[1].genes[i];
+
+            if(ch0.length == start) ch0 ~= chromosomes[1].genes[start..end+1];
+            if(ch1.length == start) ch1 ~= chromosomes[0].genes[start..end+1];
+        }
+
+        assert(ch0.length == ch1.length);
+        assert(ch0.length == size);
+
+        //set age, fitness and new genes
+        foreach(i, ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+            ch.genes = i==0? ch0 : ch1;
         }
     }
 }
@@ -688,6 +784,7 @@ class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
     {
         assert(chromosomes.length == 2);
         assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
     }
     body
     {
@@ -701,6 +798,25 @@ class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
             ch.age = 0;
             ch.fitness = double.init;
         }
+    }
+}
+
+/**
+ * Simple mutate operator to create mutate operators with delegate functions
+ */
+class SimpleMutationOperator(T:IChromosome) : IMutationOperator!T
+{
+    void delegate(T, size_t) _mutateFunc;
+    
+    this(void delegate(T, size_t) func)
+    {
+        _mutateFunc = func;
+    }
+
+    /// Execute mutate operator
+    void mutate(T chromosome, size_t idx)
+    {
+        _mutateFunc(chromosome, idx);
     }
 }
 
@@ -787,6 +903,43 @@ auto twoPointCrossover(T:IChromosome)()
 auto uniformCrossover(T:IChromosome)()
 {
     return new UniformCrossover!T();
+}
+
+/**
+ * Helper function to create instance of OrderedCrossover operator
+ */
+auto orderedCrossover(T:IChromosome)()
+{
+    return new OrderedCrossover!T();
+}
+
+/**
+ * Uniform mutation operator. Simply set gene value with random value from defined range.
+ */
+auto uniformMutation(T:IChromosome)()
+{
+    return new SimpleMutationOperator!T((ch, idx)
+    {
+        assert(!ch.isPermutation, "This mutation will break ordered chromosome. Use some mutation that takes care of this (for example swapMutation).");
+
+        ch[idx].mutate();
+    });
+}
+
+/**
+ * Mutation operator that swaps two randomly selected genes.
+ */
+auto swapMutation(T:IChromosome)()
+{
+    return new SimpleMutationOperator!T((ch, idx)
+    {
+        import std.random : uniform;
+
+        auto idx2 = uniform(0, ch.genes.length);
+        auto tmp = ch.genes[idx];
+        ch.genes[idx] = ch.genes[idx2];
+        ch.genes[idx2] = tmp;
+    });
 }
 
 //TODO: unittests

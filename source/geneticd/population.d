@@ -11,6 +11,7 @@ class Population(T:IChromosome)
     private T[] _chromosomes;
     private T _best;
     private double _totalFitness;
+    private double _totalRealFitness;
     private bool _changed;
     private bool _evaluated;
     private bool _sorted;
@@ -22,7 +23,7 @@ class Population(T:IChromosome)
      *      configuration = configuration of GA
      *      init = if true, the population is initialized with random chromosomes
      */
-    public this(Configuration!T configuration, bool init = true)
+    public this(ref Configuration!T configuration, bool init = true)
     {
         assert(configuration !is null);
 
@@ -66,24 +67,30 @@ class Population(T:IChromosome)
             assert(this._best !is null);
         }
 
-        size_t evaluated;
-        _totalFitness = 0;
+        size_t numEvaluated;
+        _totalFitness = _totalRealFitness = 0;
         _best = null;
         foreach(ch; _chromosomes)
         {
             if(!ch.isEvaluated)
             {
-                ch.fitness = _configuration.fitnessFunction.evaluate(ch);
+                ch.realFitness = _configuration.fitnessFunction.evaluate(ch);
+                if(_configuration.alterFitnessFunction !is null) 
+                    ch.fitness = _configuration.alterFitnessFunction.evaluate(ch, ch.realFitness);
+                else
+                    ch.fitness = ch.realFitness;
+
+                numEvaluated++;
             }
             _totalFitness += ch.fitness;
+            _totalRealFitness += ch.realFitness;
             if((this._best is null) || this._best.fitness < ch.fitness) this._best = ch;
-            evaluated++;
         }
 
         _changed = false;
         _evaluated = true;
 
-        return evaluated;
+        return numEvaluated;
     }
 
     /**
@@ -103,6 +110,14 @@ class Population(T:IChromosome)
     @property pure nothrow double totalFitness() const
     {
         return _totalFitness;
+    }
+
+    /**
+     * Returns the summed real fitness of all chromosomes
+     */
+    @property pure nothrow double totalRealFitness() const
+    {
+        return _totalRealFitness;
     }
 
     /**

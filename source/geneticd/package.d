@@ -8,4 +8,3 @@ public import geneticd.chromosome;
 public import geneticd.operators;
 public import geneticd.population;
 public import geneticd.terminate;
-public import geneticd.utils;

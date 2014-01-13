@@ -18,9 +18,9 @@ Add the following dependency to the `package.json` file in your project's direct
 Status
 ------
 
-First target is single threaded evaluation of GA with possibility to use custom genes, fitness functions, terminate functions, selection functions, mutation operators, etc.
-
-Currently simple BoolGene chromosomes can be evaluated with some variations of selection and crossover operators.
+Library can be used to solve basic problems already.
+Currently encoding with scalar value gene chromosomes is supported.
+Common selection and crossover operators are implemented.
 
 Note
 ----
@@ -31,7 +31,7 @@ Sample
 ```D
     // Guessing of the array content
 
-    alias Chromosome!BoolGene chromoType;   // define chromosome type
+    alias Chromosome!(ScalarGene!bool) chromoType;   // define chromosome type
 
     //init target array
     enum size = 20;
@@ -43,7 +43,7 @@ Sample
     }
 
     //create GA configuration
-    auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), size)); //config with sample chromosome to init population with
+    auto conf = new Configuration!chromoType(new chromoType(new ScalarGene!bool(), size)); //config with sample chromosome to init population with
     conf.populationSize = 10;   //size of the population
 
     //set fitness function
@@ -79,8 +79,8 @@ Sample
 
 TODO
 ----
-- [ ] add numeric genes with boundaries
-- [ ] create some samples to solve known problems and to show how to use the lib
-- [ ] saving/loading population to/from file
-- [ ] parallel processing (probably chunk the population and fitness chunks in own tasks)
-- [ ] ??? (fill the bug or pull request)
+[x] add numeric genes with boundaries
+[ ] create some samples to solve known problems and to show how to use the lib
+[ ] saving/loading population to/from file
+[ ] parallel processing (probably chunk the population and fitness chunks in own tasks)
+[ ] ??? (fill the bug or pull request)

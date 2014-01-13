@@ -1,0 +1,11 @@
+{
+	"name": "tsp",
+	"description": "A traveling salesman problem example.",
+	"copyright": "Copyright © 2014, Tomáš Chaloupka",
+	"authors": ["Tomáš Chaloupka"],
+	"license": "MIT",
+	"targetType": "executable",
+	"dependencies": {
+		"geneticd": {"version": "~master", "path": "../../"}
+	}
+}

@@ -43,9 +43,11 @@ class GA(T:IChromosome)
 
             _status.evaluations += _population.fitness(); //determine fitness of chromosomes
             _status.bestFitness = _population.best.fitness;
+            _status.bestRealFitness = _population.best.realFitness;
             _status.averageFitness = _population.totalFitness / _population.chromosomes.length;
+            _status.averageRealFitness = _population.totalRealFitness / _population.chromosomes.length;
 
-            _configuration.callbacks.invoke!"onFitness"(_status);
+            _configuration.callbacks.invoke!"onFitness"(this, _status);
         }
         while(!_configuration.terminateFunction.terminate(_status));
     }
@@ -58,7 +60,7 @@ class GA(T:IChromosome)
             initRandomPopulation();
             assert(_population !is null);
             _status.generations = 1;
-            _configuration.callbacks.invoke!"onInitialPopulation"(_status);
+            _configuration.callbacks.invoke!"onInitialPopulation"(this, _status);
         }
         else
         {
@@ -158,8 +160,14 @@ struct StatusInfo
     /// Fitness of the best solution found
     double bestFitness;
 
+    /// Unaltered fitness of the best solution found
+    double bestRealFitness;
+
     /// Average fitness of the current population
     double averageFitness;
+
+    /// Unaltered average fitness of the current population
+    double averageRealFitness;
 
     /// Total number of mutated genes
     size_t mutatedGenes;
@@ -176,7 +184,7 @@ unittest
     import std.conv;
     import std.stdio;
 
-    alias Chromosome!BoolGene chromoType;
+    alias Chromosome!(ScalarGene!bool) chromoType;
 
     enum size = 20;
     bool[] target;
@@ -189,7 +197,7 @@ unittest
     writeln("GA - bool array guessing");
 
     //create GA configuration
-    auto conf = new Configuration!chromoType(new chromoType(new BoolGene(), size));
+    auto conf = new Configuration!chromoType(new chromoType(new ScalarGene!bool(), size));
     conf.populationSize = 20;
 
     //set fitness function
@@ -225,8 +233,7 @@ unittest
     conf.crossoverOperator = uniformCrossover!chromoType();
 
     //set callback functions
-    GA!chromoType ga;
-    conf.callbacks.onInitialPopulation = (s)
+    conf.callbacks.onInitialPopulation = (const g, const ref s)
     {
         assert(isNaN(s.bestFitness));
         assert(isNaN(s.averageFitness));
@@ -234,13 +241,13 @@ unittest
         assert(s.generations == 1);
         assert(s.evaluations == 0);
     };
-    conf.callbacks.onFitness = (s)
+    conf.callbacks.onFitness = (const g, const ref s)
     {
         writeln();
         writeln("----------------------------------------------------------");
         writefln("Gen %s, Eval: %s, Best: %s, Avg: %s, Cross: %s, Mut: %s", 
                  s.generations, s.evaluations, s.bestFitness, s.averageFitness, s.crossovers, s.mutatedGenes);
-        writeln(ga.population);
+        writeln(g.population);
     };
     conf.callbacks.onElite = (elite)
     {
@@ -274,7 +281,7 @@ unittest
     };
 
     //execute GA
-    ga = new GA!chromoType(conf);
+    GA!chromoType ga = new GA!chromoType(conf);
     ga.run();
 
     writeln();
