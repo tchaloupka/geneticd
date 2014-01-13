@@ -230,7 +230,8 @@ unittest
 
     //conf.crossoverOperator = singlePointCrossover!chromoType();
     //conf.crossoverOperator = twoPointCrossover!chromoType();
-    conf.crossoverOperator = uniformCrossover!chromoType();
+    //conf.crossoverOperator = uniformCrossover!chromoType();
+    conf.crossoverOperator = halfUniformCrossover!chromoType();
 
     //set callback functions
     conf.callbacks.onInitialPopulation = (const g, const ref s)

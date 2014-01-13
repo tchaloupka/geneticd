@@ -770,7 +770,7 @@ class OrderedCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
 }
 
 /**
- * Crossover operator which randomly swaps each parent genes with the probability of 0.5.
+ * UX Crossover operator which randomly swaps each parent genes with the probability of 0.5.
  * So about 50% of genes are swapped between parents to make new offspring.
  */
 class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
@@ -790,7 +790,8 @@ class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
     {
         foreach(i; 0..chromosomes[0].genes.length)
         {
-            if(uniform(0.0, 1.0) > 0.5) swap(chromosomes[0].genes[i], chromosomes[1].genes[i]);
+            if(chromosomes[0].genes[i] != chromosomes[1].genes[i] && uniform(0.0, 1.0) > 0.5) //uniform swap if genes differ
+                swap(chromosomes[0].genes[i], chromosomes[1].genes[i]);
         }
 
         foreach(ch; chromosomes)
@@ -800,6 +801,55 @@ class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
         }
     }
 }
+
+/**
+ * In HUX crossover, only half of the bits that are different will be exchanged.
+ * For this purpose, first it is calculated the number of different bits (Hamming distance) between the parents.
+ * The half of this number is the number of bits exchanged between parents to form the childs.
+ */
+class HalfUniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.random : uniform;
+    import std.algorithm : swap;
+    
+    /// Execute crossover operator
+    void cross(StatusInfo status, T[] chromosomes...)
+        in
+    {
+        assert(chromosomes.length == 2);
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+    }
+    body
+    {
+        size_t num;
+        //first count number of different genes
+        foreach(i; 0..chromosomes[0].genes.length)
+        {
+            if(chromosomes[0].genes[i] != chromosomes[1].genes[i]) num++;
+        }
+        num /= 2; //we will change half of them
+
+        //now we change them
+        foreach(i; 0..chromosomes[0].genes.length)
+        {
+            if(num == 0) break; //half of different genes is already swapped
+            if(chromosomes[0].genes[i] != chromosomes[1].genes[i] && uniform(0.0, 1.0) > 0.5)
+            {
+                swap(chromosomes[0].genes[i], chromosomes[1].genes[i]);
+                num--;
+            }
+        }
+        
+        foreach(ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+        }
+    }
+}
+
+//TODO: Cut and splice crossover for variable length chromosomes
 
 /**
  * Simple mutate operator to create mutate operators with delegate functions
@@ -890,7 +940,7 @@ auto singlePointCrossover(T:IChromosome)()
 }
 
 /**
- * Helper function to create instance of SinglePointCrossover operator
+ * Helper function to create instance of TwoPointCrossover operator
  */
 auto twoPointCrossover(T:IChromosome)()
 {
@@ -898,11 +948,19 @@ auto twoPointCrossover(T:IChromosome)()
 }
 
 /**
- * Helper function to create instance of SinglePointCrossover operator
+ * Helper function to create instance of UniformCrossover operator
  */
 auto uniformCrossover(T:IChromosome)()
 {
     return new UniformCrossover!T();
+}
+
+/**
+ * Helper function to create instance of HalfUniformCrossover operator
+ */
+auto halfUniformCrossover(T:IChromosome)()
+{
+    return new HalfUniformCrossover!T();
 }
 
 /**
