@@ -28,6 +28,9 @@ I'm not an genetic or evolution algorithms expert nor experienced D programmer (
 
 Sample
 ------
+
+For advanced samples look to the examples directory in the library.
+
 ```D
     // Guessing of the array content
 
@@ -39,7 +42,7 @@ Sample
 
     foreach(i; 0..size)
     {
-        target ~= to!bool(uniform!"[]"(0, 1));
+        target ~= dice(0.5, 0.5) == 1;
     }
 
     //create GA configuration
