@@ -79,8 +79,10 @@ Sample
 
 TODO
 ----
-[x] add numeric genes with boundaries
-[ ] create some samples to solve known problems and to show how to use the lib
-[ ] saving/loading population to/from file
-[ ] parallel processing (probably chunk the population and fitness chunks in own tasks)
-[ ] ??? (fill the bug or pull request)
+- [x] Scalar gene with boundaries
+- [x] Traveling salesman problem example
+- [ ] Knapsack problem example
+- [ ] Target number game example
+- [ ] Saving/loading population to/from file
+- [ ] Parallel processing (probably chunk the population and fitness chunks in own tasks)
+- [ ] ??? (fill the bug or pull request)
