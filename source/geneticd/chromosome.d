@@ -70,6 +70,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
     protected T[] _genes;
     protected configType _configuration;
     protected bool _isPermutation;
+    protected bool _isFixedLength = true;
 
     protected @property pure nothrow isSample() const
     {
@@ -278,6 +279,22 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
 
     /**
+     * True if chromosome can't change number of genes. Default is true.
+     */
+    @property pure nothrow bool isFixedLength() const
+    {
+        return _isFixedLength;
+    }
+    
+    /**
+     * True if chromosome can't change number of genes. Default is true.
+     */
+    @property pure nothrow void isFixedLength(bool value)
+    {
+        _isFixedLength = value;
+    }
+
+    /**
      * Has chromosome already been evaluated?
      */
     @property pure nothrow bool isEvaluated() const
@@ -392,6 +409,8 @@ class Chromosome(T:IGene!G, G) : IChromosome
      */
     @property pure nothrow genes(T[] genes)
     {
+        assert(!_isFixedLength || _genes.length == genes.length);
+
         this._genes = genes;
     }
 
@@ -440,6 +459,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
         tmp._realFitness = this._realFitness;
         tmp._age = this._age;
         tmp._isPermutation = this._isPermutation;
+        tmp._isFixedLength = this._isFixedLength;
         return tmp;
     }
 

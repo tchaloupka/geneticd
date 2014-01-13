@@ -628,20 +628,55 @@ class StochasticUniversalSamplingSelection(T:IChromosome) : SelectionBase!T
 }
 
 /**
+ * Base class for crossover operators which can work with chromosomes with a fixed number of genes
+ */
+abstract class FixedLengthCrossoverBase(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.algorithm : all;
+
+    /// Execute crossover operator
+    abstract void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        assert(chromosomes.length == 2);
+        assert(all!"a.isFixedLength"(chromosomes), "Only fixed length chromosomes can be changed with this operator");
+        assert(all!"!a.isPermutation"(chromosomes), "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+    }
+    body{}
+}
+
+/**
+ * Base class for crossover operators which can work with chromosomes with a fixed number of genes with permutation
+ */
+abstract class PermutationCrossoverBase(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+{
+    import std.algorithm : all;
+    
+    /// Execute crossover operator
+    abstract void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        assert(chromosomes.length == 2);
+        assert(all!"a.isFixedLength"(chromosomes), "Only fixed length chromosomes can be changed with this operator");
+        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+    }
+    body{}
+}
+
+/**
  * Simple crossover operator which randomly select index of gene and swap genes of parents after that index
  */
-class SinglePointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+class SinglePointCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
 {
     import std.random : uniform;
     import std.algorithm : swapRanges;
 
     /// Execute crossover operator
-    void cross(StatusInfo status, T[] chromosomes...)
+    override void cross(StatusInfo status, T[] chromosomes...)
     in
     {
-        assert(chromosomes.length == 2);
-        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
-        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+        assert(false);
     }
     body
     {
@@ -659,18 +694,16 @@ class SinglePointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFuncti
 /**
  * Simple crossover operator which randomly select 2 indexes of gene and swap middle genes of parents
  */
-class TwoPointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+class TwoPointCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
 {
     import std.random : uniform;
     import std.algorithm : swapRanges, swap;
     
     /// Execute crossover operator
-    void cross(StatusInfo status, T[] chromosomes...)
+    override void cross(StatusInfo status, T[] chromosomes...)
     in
     {
-        assert(chromosomes.length == 2);
-        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
-        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+        assert(false);
     }
     body
     {
@@ -700,18 +733,17 @@ class TwoPointCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctions
  *  Child  1: 8 2 1   3 4 5 6 7   9 0
  *  Child  2: 0 4 7   3 6 2 5 1   8 9
  */
-class OrderedCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+class OrderedCrossover(T:IChromosome) : PermutationCrossoverBase!T
 {
     import std.random : uniform;
     import std.algorithm : filter, canFind, swap;
     import std.array : array, insertInPlace;
     
     /// Execute crossover operator
-    void cross(StatusInfo status, T[] chromosomes...)
+    override void cross(StatusInfo status, T[] chromosomes...)
     in
     {
-        assert(chromosomes.length == 2);
-        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
+        assert(false);
     }
     body
     {
@@ -720,10 +752,9 @@ class OrderedCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
         auto end = uniform(0, size);
         if(start > end) swap(start, end);
 
-        //TODO: these somehow dont work..
+        //TODO: this somehow does not work..
 //        auto ch0 = chromosomes[0].genes.filter!((g) => !chromosomes[1].genes[start..end+1].canFind(g)).array;
 //        auto ch1 = chromosomes[1].genes.filter!((g) => !chromosomes[0].genes[start..end+1].canFind(g)).array;
-
 //        //insert sublist
 //        ch0.insertInPlace(start, chromosomes[1].genes[start..end+1]);
 //        ch1.insertInPlace(start, chromosomes[0].genes[start..end+1]);
@@ -773,18 +804,16 @@ class OrderedCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
  * UX Crossover operator which randomly swaps each parent genes with the probability of 0.5.
  * So about 50% of genes are swapped between parents to make new offspring.
  */
-class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+class UniformCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
 {
     import std.random : uniform;
     import std.algorithm : swap;
     
     /// Execute crossover operator
-    void cross(StatusInfo status, T[] chromosomes...)
-        in
+    override void cross(StatusInfo status, T[] chromosomes...)
+    in
     {
-        assert(chromosomes.length == 2);
-        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
-        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+        assert(false);
     }
     body
     {
@@ -807,18 +836,16 @@ class UniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsT
  * For this purpose, first it is calculated the number of different bits (Hamming distance) between the parents.
  * The half of this number is the number of bits exchanged between parents to form the childs.
  */
-class HalfUniformCrossover(T:IChromosome) : ICrossoverOperator!T if(MemberFunctionsTuple!(T, "genes").length > 0)
+class HalfUniformCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
 {
     import std.random : uniform;
     import std.algorithm : swap;
     
     /// Execute crossover operator
-    void cross(StatusInfo status, T[] chromosomes...)
-        in
+    override void cross(StatusInfo status, T[] chromosomes...)
+    in
     {
-        assert(chromosomes.length == 2);
-        assert(chromosomes[0].genes.length == chromosomes[1].genes.length);
-        assert(!chromosomes[0].isPermutation, "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+        assert(false);
     }
     body
     {
