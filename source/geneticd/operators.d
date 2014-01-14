@@ -721,86 +721,6 @@ class TwoPointCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
 }
 
 /**
- * Perform ordered crossover (also known as OX) on the specified tours.
- * 
- * Ordered crossover works in two stages. First, a random slice is swapped between the two tours, as in a two-point crossover.
- * Second, repeated genes not in the swapped area are removed, and the remaining integers are added
- * from the other tour, in the order that they appear starting from the end index of the swapped section.
- * 
- * Example:
- *  Parent 1: 8 4 7 | 3 6 2 5 1 | 9 0
- *  Parent 2: 0 1 2 | 3 4 5 6 7 | 8 9
- *  Child  1: 8 2 1   3 4 5 6 7   9 0
- *  Child  2: 0 4 7   3 6 2 5 1   8 9
- */
-class OrderedCrossover(T:IChromosome) : PermutationCrossoverBase!T
-{
-    import std.random : uniform;
-    import std.algorithm : filter, canFind, swap;
-    import std.array : array, insertInPlace;
-    
-    /// Execute crossover operator
-    override void cross(StatusInfo status, T[] chromosomes...)
-    in
-    {
-        assert(false);
-    }
-    body
-    {
-        size_t size = chromosomes[0].genes.length;
-        auto start = uniform(0, size);
-        auto end = uniform(0, size);
-        if(start > end) swap(start, end);
-
-        //TODO: this somehow does not work..
-//        auto ch0 = chromosomes[0].genes.filter!((g) => !chromosomes[1].genes[start..end+1].canFind(g)).array;
-//        auto ch1 = chromosomes[1].genes.filter!((g) => !chromosomes[0].genes[start..end+1].canFind(g)).array;
-//        //insert sublist
-//        ch0.insertInPlace(start, chromosomes[1].genes[start..end+1]);
-//        ch1.insertInPlace(start, chromosomes[0].genes[start..end+1]);
-
-        typeof(chromosomes[0].genes) ch0;
-        typeof(chromosomes[0].genes) ch1;
-
-        if(start == 0)
-        {
-            ch0 ~= chromosomes[1].genes[start..end+1];
-            ch1 ~= chromosomes[0].genes[start..end+1];
-        }
-
-        //add genes which are not in other parent sublist
-        foreach(i; 0..size)
-        {
-            bool found0 = false;
-            bool found1 = false;
-            foreach(j; start..end+1)
-            {
-                if(chromosomes[1].genes[j] == chromosomes[0].genes[i]) found0 = true;
-                if(chromosomes[0].genes[j] == chromosomes[1].genes[i]) found1 = true;
-                if(found0 && found1) break;
-            }
-
-            if(!found0) ch0~= chromosomes[0].genes[i];
-            if(!found1) ch1~= chromosomes[1].genes[i];
-
-            if(ch0.length == start) ch0 ~= chromosomes[1].genes[start..end+1];
-            if(ch1.length == start) ch1 ~= chromosomes[0].genes[start..end+1];
-        }
-
-        assert(ch0.length == ch1.length);
-        assert(ch0.length == size);
-
-        //set age, fitness and new genes
-        foreach(i, ch; chromosomes)
-        {
-            ch.age = 0;
-            ch.fitness = double.init;
-            ch.genes = i==0? ch0 : ch1;
-        }
-    }
-}
-
-/**
  * UX Crossover operator which randomly swaps each parent genes with the probability of 0.5.
  * So about 50% of genes are swapped between parents to make new offspring.
  */
@@ -876,6 +796,128 @@ class HalfUniformCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
     }
 }
 
+/**
+ * Perform ordered crossover (OX) on the specified tours.
+ * 
+ * Ordered crossover works in two stages. First, a random slice is swapped between the two tours, as in a two-point crossover.
+ * Second, repeated genes not in the swapped area are removed, and the remaining integers are added
+ * from the other tour, in the order that they appear starting from the end index of the swapped section.
+ * 
+ * Example:
+ *  Parent 1: 8 4 7 | 3 6 2 5 1 | 9 0
+ *  Parent 2: 0 1 2 | 3 4 5 6 7 | 8 9
+ *  Child  1: 0 4 7   3 6 2 5 1   8 9
+ *  Child  2: 8 2 1   3 4 5 6 7   9 0
+ */
+class OrderedCrossover(T:Chromosome!U, U) : PermutationCrossoverBase!T
+{
+    import std.random : uniform;
+    import std.algorithm : filter, canFind, swap;
+    import std.array : array, insertInPlace;
+    
+    /// Execute crossover operator
+    override void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        assert(false);
+    }
+    body
+    {
+        size_t size = chromosomes[0].genes.length;
+        auto start = uniform(0, size);
+        auto end = uniform(0, size);
+        if(start > end) swap(start, end);
+        
+        U[] o1 = ox(start, end, chromosomes[0].genes, chromosomes[1].genes);
+        U[] o2 = ox(start, end, chromosomes[1].genes, chromosomes[0].genes);
+        
+        assert(o1.length == o2.length);
+        assert(o1.length == size);
+        
+        //set age, fitness and new genes
+        foreach(i, ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+            ch.genes = i==0? o1 : o2;
+        }
+    }
+
+    private static V[] ox(V)(in size_t start, in size_t end, V[] p1, V[] p2)
+    {
+        assert(start <= end);
+        assert(p1.length == p2.length);
+
+        import std.algorithm : canFind, copy;
+
+        V[] tmp;
+        tmp.length = p1.length;
+
+        //copy sublist
+        copy(p1[start..end+1], tmp[start..end+1]);
+
+        size_t pIdx = end+1; //we begin to fill from the right side of sublist
+        size_t idx = end+1;
+
+        while(idx < p1.length) //fill end
+        {
+            if(!canFind(tmp[start..end+1], p2[pIdx]))
+                tmp[idx++] = p2[pIdx];
+
+            if(++pIdx == p1.length)
+                pIdx = 0; //start from the beginning of parent
+        }
+
+        idx = 0;
+        if(pIdx == p1.length) pIdx = 0; //if end is last index of parent
+
+        while(idx < start) //fill the rest
+        {
+            if(!canFind(tmp[start..end+1], p2[pIdx]))
+                tmp[idx++] = p2[pIdx];
+            pIdx++;
+        }
+
+        return tmp;
+    }
+
+    unittest
+    {
+        import std.stdio;
+
+        //Test 1:
+        auto p1 = [8, 4, 7, 3, 6, 2, 5, 1, 9, 0];
+        auto p2 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+        auto o1 = ox(3, 7, p1, p2);
+        auto o2 = ox(3, 7, p2, p1);
+
+        assert(o1 == [0, 4, 7, 3, 6, 2, 5, 1, 8, 9]);
+        assert(o2 == [8, 2, 1, 3, 4, 5, 6, 7, 9, 0]);
+
+        //Test2
+        p1 = [8, 4, 7, 3, 6, 2, 5, 1];
+        p2 = [0, 1, 2, 3, 4, 5, 6, 7];
+
+        o1 = ox(3, 7, p1, p2);
+        o2 = ox(3, 7, p2, p1);
+
+        assert(o1 == [0, 4, 7, 3, 6, 2, 5, 1]);
+        assert(o2 == [8, 2, 1, 3, 4, 5, 6, 7]);
+
+        //Test 3:
+        p1 = [1, 4, 2, 8, 5, 7, 3, 6, 9];
+        p2 = [7, 5, 3, 1, 9, 8, 6, 4, 2];
+
+        o1 = ox(3, 6, p1, p2);
+        o2 = ox(3, 6, p2, p1);
+
+        assert(o1 == [1, 9, 6, 8, 5, 7, 3, 4, 2]);
+        assert(o2 == [5, 7, 3, 1, 9, 8, 6, 4, 2]);
+    }
+}
+
+//TODO: Partialy-mapped crossover (PMX)
 //TODO: Cut and splice crossover for variable length chromosomes
 
 /**

@@ -80,6 +80,8 @@ class Population(T:IChromosome)
                 else
                     ch.fitness = ch.realFitness;
 
+                assert(ch.fitness >= 0, "Fitnes has to be positive!");
+
                 numEvaluated++;
             }
             _totalFitness += ch.fitness;
