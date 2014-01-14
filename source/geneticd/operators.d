@@ -758,7 +758,7 @@ class UniformCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
  */
 class HalfUniformCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
 {
-    import std.random : uniform;
+    import std.random : randomShuffle;
     import std.algorithm : swap;
     
     /// Execute crossover operator
@@ -769,23 +769,21 @@ class HalfUniformCrossover(T:IChromosome) : FixedLengthCrossoverBase!T
     }
     body
     {
-        size_t num;
-        //first count number of different genes
-        foreach(i; 0..chromosomes[0].genes.length)
-        {
-            if(chromosomes[0].genes[i] != chromosomes[1].genes[i]) num++;
-        }
-        num /= 2; //we will change half of them
+        size_t[] toChange;
 
-        //now we change them
+        //find what genes can be changed
         foreach(i; 0..chromosomes[0].genes.length)
         {
-            if(num == 0) break; //half of different genes is already swapped
-            if(chromosomes[0].genes[i] != chromosomes[1].genes[i] && uniform(0.0, 1.0) > 0.5)
-            {
-                swap(chromosomes[0].genes[i], chromosomes[1].genes[i]);
-                num--;
-            }
+            if(chromosomes[0].genes[i] != chromosomes[1].genes[i]) toChange ~= i;
+        }
+
+        //random shuffle the indexes list
+        randomShuffle(toChange);
+
+        //and swap half of them
+        foreach(idx; toChange[0..$/2])
+        {
+            swap(chromosomes[0].genes[idx], chromosomes[1].genes[idx]);
         }
         
         foreach(ch; chromosomes)
