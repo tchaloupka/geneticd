@@ -851,10 +851,10 @@ class OrderedCrossover(T:Chromosome!U, U) : PermutationCrossoverBase!T
         V[] tmp;
         tmp.length = p1.length;
 
-        //copy sublist
+        //copy subrange
         copy(p1[start..end+1], tmp[start..end+1]);
 
-        size_t pIdx = end+1; //we begin to fill from the right side of sublist
+        size_t pIdx = end+1; //we begin to fill from the right side of subrange
         size_t idx = end+1;
 
         while(idx < p1.length) //fill end
@@ -881,8 +881,6 @@ class OrderedCrossover(T:Chromosome!U, U) : PermutationCrossoverBase!T
 
     unittest
     {
-        import std.stdio;
-
         //Test 1:
         auto p1 = [8, 4, 7, 3, 6, 2, 5, 1, 9, 0];
         auto p2 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -915,7 +913,112 @@ class OrderedCrossover(T:Chromosome!U, U) : PermutationCrossoverBase!T
     }
 }
 
-//TODO: Partialy-mapped crossover (PMX)
+/**
+ * Partialy mapped crossover (PMX).
+ * 
+ * The PMX builds an offspring by choosing a subsequence of a tour from one parent preserving the order and position of as many positions as possible 
+ * from the other parent.
+ * 
+ * Example:
+ *  Parent 1: 1 4 2 | 8 5 7 3 | 6 9
+ *  Parent 2: 7 5 3 | 1 9 8 6 | 4 2
+ *  Child  1: 7 4 2   1 9 8 6   3 5
+ *  Child  2: 1 9 6   8 5 7 3   4 2
+ */
+class PMXCrossover(T:Chromosome!U, U) : PermutationCrossoverBase!T
+{
+    import std.random : uniform;
+    import std.algorithm : filter, canFind, swap;
+    import std.array : array, insertInPlace;
+    
+    /// Execute crossover operator
+    override void cross(StatusInfo status, T[] chromosomes...)
+        in
+    {
+        assert(false);
+    }
+    body
+    {
+        size_t size = chromosomes[0].genes.length;
+        auto start = uniform(0, size);
+        auto end = uniform(0, size);
+        if(start > end) swap(start, end);
+        
+        U[] o1 = ox(start, end, chromosomes[0].genes, chromosomes[1].genes);
+        U[] o2 = ox(start, end, chromosomes[1].genes, chromosomes[0].genes);
+        
+        assert(o1.length == o2.length);
+        assert(o1.length == size);
+        
+        //set age, fitness and new genes
+        foreach(i, ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+            ch.genes = i==0? o1 : o2;
+        }
+    }
+    
+    private static V[] ox(V)(in size_t start, in size_t end, V[] p1, V[] p2)
+    {
+        assert(start <= end);
+        assert(p1.length == p2.length);
+
+        bool canFind(V[] slice, V item, ref size_t idx)
+        {
+            idx = 0;
+            while(idx != slice.length && slice[idx] != item) idx++;
+            return idx < slice.length;
+        }
+        
+        V[] tmp;
+        tmp.length = p1.length;
+        size_t idx, tmpIdx;
+
+        foreach(i; 0..p1.length)
+        {
+            if(i >= start && i <= end) //just copy from p2
+            {
+                tmp[i] = p2[i];
+            }
+            else if(!canFind(p2[start..end+1], p1[i], idx)) //add original gene from p1
+            {
+                tmp[i] = p1[i];
+            }
+            else
+            {
+                //find mapped
+                tmpIdx = idx;
+                while(canFind(p2[start..end+1], p1[start+idx], idx))
+                {
+                    tmpIdx = idx;
+                }
+                tmp[i] = p1[start+tmpIdx];
+            }
+        }
+
+        return tmp;
+    }
+    
+    unittest
+    {
+        import std.stdio;
+
+        auto p1 = [1, 4, 2, 8, 5, 7, 3, 6, 9];
+        auto p2 = [7, 5, 3, 1, 9, 8, 6, 4, 2];
+        
+        auto o1 = ox(3, 6, p1, p2);
+        auto o2 = ox(3, 6, p2, p1);
+
+        writeln(o1);
+        writeln(o2);
+        
+        assert(o1 == [7, 4, 2, 1, 9, 8, 6, 3, 5]);
+        assert(o2 == [1, 9, 6, 8, 5, 7, 3, 4, 2]);
+    }
+}
+
+//TODO: Cycle crossover
 //TODO: Cut and splice crossover for variable length chromosomes
 
 /**
@@ -1036,6 +1139,14 @@ auto halfUniformCrossover(T:IChromosome)()
 auto orderedCrossover(T:IChromosome)()
 {
     return new OrderedCrossover!T();
+}
+
+/**
+ * Helper function to create instance of PMXCrossover operator
+ */
+auto pmxCrossover(T:IChromosome)()
+{
+    return new PMXCrossover!T();
 }
 
 /**

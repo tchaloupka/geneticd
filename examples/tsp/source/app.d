@@ -67,7 +67,8 @@ void main()
         noImprovementTerminate!(10));   //terminate if no better chromosome is found within 10 generations
     conf.eliteSelectionOperator = eliteSelection!ChromosomeType(1); //keep the best chromosome unchanged for next population
     conf.parentSelectionOperator = tournamentSelection!ChromosomeType(5, 0.9); //parents are selected from tournament pools of size 5 with probability 0.9 that the best of the pool will will be selected
-    conf.crossoverOperator = orderedCrossover!ChromosomeType(); //we have to use some crossover operator which keeps genes ordered - OX in this case
+    //conf.crossoverOperator = orderedCrossover!ChromosomeType(); //we have to use some crossover operator which keeps genes ordered - OX in this case
+    conf.crossoverOperator = pmxCrossover!ChromosomeType(); //we have to use some crossover operator which keeps genes ordered - OX in this case
     conf.mutationOperator = swapMutation!ChromosomeType(); //again we have to use mutation operator that will not invalidate chromosome
 
     //set fitness function - we should precompute the distance between all cities, but for simplicity..
