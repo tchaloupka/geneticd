@@ -1018,8 +1018,48 @@ class PMXCrossover(T:Chromosome!U, U) : PermutationCrossoverBase!T
     }
 }
 
+/**
+ * Crossover operator for variable length chromosomes
+ */
+class CutAndSpliceCrossover(T:Chromosome!U, U) : ICrossoverOperator!T
+{
+    import std.random : uniform;
+
+    /// Execute crossover operator
+    override void cross(StatusInfo status, T[] chromosomes...)
+    in
+    {
+        import std.algorithm : all;
+
+        assert(chromosomes.length == 2);
+        assert(all!"!a.isFixedLength"(chromosomes), "Only not fixed length chromosomes can be changed with this operator");
+        assert(all!"!a.isPermutation"(chromosomes), "This crossover will break ordered chromosome. Use some ordered crossover instead.");
+    }
+    body
+    {
+        auto idx1 = chromosomes[0].genes.length ? uniform(0, chromosomes[0].genes.length) : 0;
+        auto idx2 = chromosomes[1].genes.length ? uniform(0, chromosomes[1].genes.length) : 0;
+
+        typeof(chromosomes[0].genes) o1, o2;
+
+        if(chromosomes[0].genes.length) o1 = chromosomes[0].genes[0..idx1];
+        if(chromosomes[1].genes.length)
+        {
+            o2 = chromosomes[1].genes[0..idx2];
+            o1 ~= chromosomes[1].genes[idx2..$];
+        }
+        if(chromosomes[0].genes.length) o2 ~= chromosomes[0].genes[idx1..$];
+
+        foreach(i, ch; chromosomes)
+        {
+            ch.age = 0;
+            ch.fitness = double.init;
+            ch.genes = i==0? o1 : o2;
+        }
+    }
+}
+
 //TODO: Cycle crossover
-//TODO: Cut and splice crossover for variable length chromosomes
 
 /**
  * Simple mutate operator to create mutate operators with delegate functions
@@ -1104,7 +1144,7 @@ auto stochasticSelection(T:IChromosome)(in size_t selectionSize)
 /**
  * Helper function to create instance of SinglePointCrossover operator
  */
-auto singlePointCrossover(T:IChromosome)()
+auto singlePointCrossover(T:Chromosome!U, U)()
 {
     return new SinglePointCrossover!T();
 }
@@ -1112,7 +1152,7 @@ auto singlePointCrossover(T:IChromosome)()
 /**
  * Helper function to create instance of TwoPointCrossover operator
  */
-auto twoPointCrossover(T:IChromosome)()
+auto twoPointCrossover(T:Chromosome!U, U)()
 {
     return new TwoPointCrossover!T();
 }
@@ -1120,7 +1160,7 @@ auto twoPointCrossover(T:IChromosome)()
 /**
  * Helper function to create instance of UniformCrossover operator
  */
-auto uniformCrossover(T:IChromosome)()
+auto uniformCrossover(T:Chromosome!U, U)()
 {
     return new UniformCrossover!T();
 }
@@ -1128,7 +1168,7 @@ auto uniformCrossover(T:IChromosome)()
 /**
  * Helper function to create instance of HalfUniformCrossover operator
  */
-auto halfUniformCrossover(T:IChromosome)()
+auto halfUniformCrossover(T:Chromosome!U, U)()
 {
     return new HalfUniformCrossover!T();
 }
@@ -1136,7 +1176,7 @@ auto halfUniformCrossover(T:IChromosome)()
 /**
  * Helper function to create instance of OrderedCrossover operator
  */
-auto orderedCrossover(T:IChromosome)()
+auto orderedCrossover(T:Chromosome!U, U)()
 {
     return new OrderedCrossover!T();
 }
@@ -1144,9 +1184,17 @@ auto orderedCrossover(T:IChromosome)()
 /**
  * Helper function to create instance of PMXCrossover operator
  */
-auto pmxCrossover(T:IChromosome)()
+auto pmxCrossover(T:Chromosome!U, U)()
 {
     return new PMXCrossover!T();
+}
+
+/**
+ * Helper function to create instance of CutAndSpliceCrossover operator
+ */
+auto cutAndSpliceCrossover(T:Chromosome!U, U)()
+{
+    return new CutAndSpliceCrossover!T();
 }
 
 /**

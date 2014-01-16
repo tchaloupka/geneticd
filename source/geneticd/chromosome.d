@@ -50,11 +50,6 @@ interface IChromosome : ICloneable!IChromosome
      * Used by GA engine to clean up any resources
      */
     pure nothrow void clean();
-
-    /**
-     * Randomizes chromosome genes
-     */
-    void randomize();
 }
 
 /**
@@ -87,13 +82,17 @@ class Chromosome(T:IGene!G, G) : IChromosome
     this(ref configType configuration)
     {
         assert(configuration !is null);
+        assert(configuration.sampleChromosome !is null);
 
         auto sample = cast(Chromosome!T)configuration.sampleChromosome;
         if(!sample) assert(false);
         assert(sample._genes.length > 0);
 
         if(sample.isPermutation)
-            this(configuration, sample); 
+        {
+            assert(sample.isFixedLength, "Only fixed length permutation chromosomes supported");
+            this(configuration, sample);
+        }
         else
             this(configuration, sample._genes[0], sample._genes.length);
     }
@@ -137,12 +136,16 @@ class Chromosome(T:IGene!G, G) : IChromosome
     }
     out
     {
-        assert(this._genes.length == size);
+        assert(!_isFixedLength || this._genes.length == size);
     }
     body
     {
+        import std.random : uniform;
+
         this._configuration = configuration;
-        foreach(i; 0..size)
+        this._isFixedLength = configuration.sampleChromosome.isFixedLength;
+        this._isPermutation = configuration.sampleChromosome.isPermutation;
+        foreach(i; 0..(_isFixedLength ? size : uniform(0, size)))
         {
             this._genes ~= cast(T)sampleGene.clone();
         }
@@ -172,8 +175,11 @@ class Chromosome(T:IGene!G, G) : IChromosome
     {
         this._configuration = configuration;
         this._isPermutation = sampleChromosome._isPermutation;
+        this._isFixedLength = sampleChromosome._isFixedLength;
+
         foreach(g; sampleChromosome.genes)
         {
+            assert(g !is null, "Sample chromosome has null sample genes!");
             this._genes ~= cast(T)g.clone();
         }
         randomize();
@@ -189,7 +195,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
     this(ref configType configuration, T[] initialGenes)
     {
         assert(configuration !is null);
-        assert(initialGenes.length > 0);
+        assert(!configuration.sampleChromosome.isFixedLength || initialGenes.length > 0);
 
         scope(exit)
         {
@@ -326,7 +332,7 @@ class Chromosome(T:IGene!G, G) : IChromosome
     /**
      * Randomize chromosome genes
      */
-    void randomize()
+    private void randomize()
     {
         assert(!isSample);
 
@@ -407,6 +413,14 @@ class Chromosome(T:IGene!G, G) : IChromosome
     /**
      * Genes of chromosome
      */
+    @property pure nothrow const(T[]) genes() const
+    {
+        return _genes;
+    }
+
+    /**
+     * Genes of chromosome
+     */
     @property pure nothrow genes(T[] genes)
     {
         assert(!_isFixedLength || _genes.length == genes.length);
@@ -425,12 +439,15 @@ class Chromosome(T:IGene!G, G) : IChromosome
         tmp ~= format("age: %s, ", _age);
         tmp ~= format("fitness: %s, ", _fitness);
         tmp ~= "[";
-        foreach(g; _genes[0..$-1])
+        if(_genes.length > 0)
         {
-            tmp ~= to!string(g);
-            tmp ~= ", ";
+            foreach(g; _genes[0..$-1])
+            {
+                tmp ~= to!string(g);
+                tmp ~= ", ";
+            }
+            tmp ~= to!string(_genes[$-1]);
         }
-        tmp ~= to!string(_genes[$-1]);
         tmp ~= "])";
 
         return tmp;

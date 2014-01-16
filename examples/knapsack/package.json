@@ -1,0 +1,11 @@
+{
+	"name": "knapsack",
+	"description": "A knapsack problem example.",
+	"copyright": "Copyright © 2014, Tomáš Chaloupka",
+	"authors": ["Tomáš Chaloupka"],
+	"license": "MIT",
+	"targetType": "executable",
+	"dependencies": {
+		"geneticd": {"version": "~master", "path": "../../"}
+	}
+}
